@@ -188,7 +188,7 @@ void Database_SQLite3::openDatabase()
 	SQLOK(sqlite3_exec(m_database, query_str.c_str(), NULL, NULL, NULL),
 		"Failed to modify sqlite3 synchronous mode");
 
-	std::string journal_mode = "default-delete";
+	std::string journal_mode = "default-wal";
 	g_settings->getNoEx("sqlite_journal_mode", journal_mode);
 	journal_mode = uppercase(journal_mode);
 	bool change_mode = true;

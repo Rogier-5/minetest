@@ -1016,7 +1016,7 @@
 
 #    Configure the journal mode for sqlite3.
 #    See https://www.sqlite.org/pragma.html#pragma_journal_mode
-#    The default journal mode is DELETE, a recommended alternative is WAL.
+#    The default journal mode that sqlite3 uses is DELETE. Minetest uses WAL by default
 #    See https://www.sqlite.org/wal.html
 #    Some advantages of WAL mode over DELETE mode:
 #    - setting sqlite_synchronous to normal (1) will never cause database corruption.
@@ -1035,15 +1035,15 @@
 #    Values:
 #    - delete:           use delete mode for all new and existing databases
 #    - default-delete:   use delete mode for new databases. Don't modify existing databases.
-#			 (this value is used by default)
 #    - truncate:         use truncate mode for all new and existing databases
 #    - default-truncate: use truncate mode for new databases. Don't modify existing databases.
 #    - persist:          use persist mode for all new and existing databases
 #    - default-persist:  use persist mode for new databases. Don't modify existing databases.
 #    - wal:              use wal mode for all new and existing databases
 #    - default-wal:      use wal mode for new databases. Don't modify existing databases.
+#			 (this value is used by default)
 #    Other sqlite3 journal modes ('memory' and 'off') are not supported.
-# sqlite_journal_mode = default-delete
+# sqlite_journal_mode = default-wal
 
 #    Length of a server tick and the interval at which objects are generally updated over network.
 #    type: float
