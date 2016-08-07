@@ -114,6 +114,7 @@ int Database_SQLite3::busyHandler(void *data, int count)
 Database_SQLite3::Database_SQLite3(const std::string &savedir) :
 	m_initialized(false),
 	m_savedir(savedir),
+	m_wal_backlog(0),
 	m_database(NULL),
 	m_stmt_read(NULL),
 	m_stmt_write(NULL),
@@ -136,6 +137,20 @@ void Database_SQLite3::endSave() {
 	SQLRES(sqlite3_step(m_stmt_end), SQLITE_DONE,
 		"Failed to commit SQLite3 transaction");
 	sqlite3_reset(m_stmt_end);
+
+	int total_size;
+	int checkpointed;
+	SQLOK(sqlite3_wal_checkpoint_v2(m_database, NULL, SQLITE_CHECKPOINT_PASSIVE, &total_size, &checkpointed),
+		"failed to checkpoint database");
+	if (total_size >= 0 && checkpointed >= 0) {
+		int new_wal_backlog = total_size - checkpointed;
+		// Normally, sqlite would checkpoint every 1000 pages.
+		if (m_wal_backlog / 10000 < new_wal_backlog / 10000)
+			(new_wal_backlog >= 100000 ? errorstream : warningstream)
+				<< "SQLITE3: WAL backlog exceeds " << (new_wal_backlog / 10000) * 10000
+				<< " pages - is another process using the database ?" << std::endl;
+		m_wal_backlog = new_wal_backlog;
+	}
 }
 
 void Database_SQLite3::openDatabase()
@@ -162,7 +177,9 @@ void Database_SQLite3::openDatabase()
 	SQLOK(sqlite3_busy_handler(m_database, Database_SQLite3::busyHandler,
 		m_busy_handler_data), "Failed to set SQLite3 busy handler");
 
+	bool created = false;
 	if (needs_create) {
+		created = true;
 		createDatabase();
 	}
 
@@ -170,6 +187,35 @@ void Database_SQLite3::openDatabase()
 			 + itos(g_settings->getU16("sqlite_synchronous"));
 	SQLOK(sqlite3_exec(m_database, query_str.c_str(), NULL, NULL, NULL),
 		"Failed to modify sqlite3 synchronous mode");
+
+	std::string journal_mode = "default-delete";
+	g_settings->getNoEx("sqlite_journal_mode", journal_mode);
+	journal_mode = uppercase(journal_mode);
+	bool change_mode = true;
+	if (journal_mode.substr(0, 8) == "DEFAULT-") {
+		change_mode = false;
+		journal_mode = journal_mode.substr(8);
+	}
+	if (journal_mode != "DELETE" && journal_mode != "TRUNCATE"
+			&& journal_mode != "PERSIST" && journal_mode != "WAL")
+		throw DatabaseException(std::string("Invalid value for configuration parameter 'sqlite_journal_mode': '")
+			+ (change_mode ? "" : "default-") + lowercase(journal_mode)
+			+ "', expected: [default-]{delete|truncate|persist|wal}");
+
+	if (created || change_mode) {
+		SQLOK(sqlite3_exec(m_database, (std::string("PRAGMA journal_mode = ") + journal_mode).c_str(), NULL, NULL, NULL),
+			std::string("Failed to set sqlite3 journal mode to ") + journal_mode);
+		if (!created)
+			infostream << "Enabled journal mode " << journal_mode << " on existing SQLite3 database" << std::endl;
+	}
+	int rv;
+	if (SQLITE_OK != (rv = sqlite3_wal_checkpoint_v2(m_database, NULL, SQLITE_CHECKPOINT_RESTART, NULL, NULL))) {
+		if (rv == SQLITE_BUSY) {
+			throw DatabaseException("Failed to checkpoint database: the database is in use by another process");
+		} else {
+			SQLOK(rv, "Failed to checkpoint database");
+		}
+	}
 }
 
 void Database_SQLite3::verifyDatabase()
@@ -295,6 +341,22 @@ Database_SQLite3::~Database_SQLite3()
 	FINALIZE_STATEMENT(m_stmt_end)
 	FINALIZE_STATEMENT(m_stmt_delete)
 
+	// Try to checkpoint the entire WAL before exit.
+	// so that the database file is self-contained. Hopefully, this also
+	// causes the wal file to be removed.
+	int rv;
+	// SQLITE_CHECKPOINT_TRUNCATE is only supported since sqlite 3.8 (jan. 2015)
+#ifdef SQLITE_CHECKPOINT_TRUNCATE
+	if (SQLITE_OK != (rv = sqlite3_wal_checkpoint_v2(m_database, NULL, SQLITE_CHECKPOINT_TRUNCATE, NULL, NULL))) {
+#else
+	if (SQLITE_OK != (rv = sqlite3_wal_checkpoint_v2(m_database, NULL, SQLITE_CHECKPOINT_RESTART, NULL, NULL))) {
+#endif
+		if (rv == SQLITE_BUSY) {
+			infostream << "Failed to checkpoint database: the database is in use by another process (but all data is safe!)" << std::endl;
+		} else {
+			SQLOK(rv, "Failed to checkpoint database")
+		}
+	}
 	SQLOK_ERRSTREAM(sqlite3_close(m_database), "Failed to close database");
 }
 
