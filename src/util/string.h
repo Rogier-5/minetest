@@ -245,6 +245,23 @@ inline std::string lowercase(const std::string &str)
 
 /**
  * @param str
+ * @return A copy of \p str converted to all uppercase characters.
+ */
+inline std::string uppercase(const std::string &str)
+{
+	std::string s2;
+
+	s2.reserve(str.size());
+
+	for (size_t i = 0; i < str.size(); i++)
+		s2 += toupper(str[i]);
+
+	return s2;
+}
+
+
+/**
+ * @param str
  * @return A copy of \p str with leading and trailing whitespace removed.
  */
 inline std::string trim(const std::string &str)
