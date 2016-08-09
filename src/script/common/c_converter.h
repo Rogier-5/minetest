@@ -32,6 +32,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "irrlichttypes_bloated.h"
 #include "common/c_types.h"
+#include "util/numeric.h"
+#include "util/serialize.h"
 
 extern "C" {
 #include <lua.h>
@@ -83,6 +85,38 @@ v2f                 check_v2f           (lua_State *L, int index);
 v2s16               check_v2s16         (lua_State *L, int index);
 v3f                 check_v3f           (lua_State *L, int index);
 v3s16               check_v3s16         (lua_State *L, int index);
+
+void                check_range_f_alt   (lua_State *L, float f,
+				float min, float max, float rmin, float rmax,
+				const char *msg1, const char *msg2 = NULL);
+
+inline void         check_range_f       (lua_State *L, float f,
+				float min, float max,
+				const char *msg1, const char *msg2 = NULL)
+			{ check_range_f_alt(L, f, min, max, min, max, msg1, msg2); }
+
+inline void         check_range_v3f_alt (lua_State *L, v3f p,
+				float min, float max, float rmin, float rmax,
+				const char *msg1, const char *msg2 = NULL)
+			{
+				check_range_f_alt(L, p.X, min, max, rmin, rmax, msg1, msg2);
+				check_range_f_alt(L, p.Y, min, max, rmin, rmax, msg1, msg2);
+				check_range_f_alt(L, p.Z, min, max, rmin, rmax, msg1, msg2);
+			}
+
+inline void         check_range_v3f     (lua_State *L, v3f p,
+				float min, float max,
+				const char *msg1, const char *msg2 = NULL)
+			{ check_range_v3f_alt(L, p, min, max, min, max, msg1, msg2); }
+
+inline float        sanitize_yaw        (float yaw)
+			// Set to 0 if abs. value larger than 1e5, so that limiting the
+			// range does not suffer from floating point precision issues...
+			// The value shouldn't be (much) larger than 360 anyway...
+			{ return (fabs(yaw) > 1e5 || fabs(yaw) < 1e-3) ? 0
+				: (yaw - trunc(yaw / 360) * 360 + (yaw < 0 ? 360 : 0)); }
+inline float        sanitize_pitch      (float pitch)
+			{ return (fabs(pitch) < 1e-3) ? 0 : pitch - trunc(pitch / 90) * 90; }
 
 v3f                 read_v3f            (lua_State *L, int index);
 v2f                 read_v2f            (lua_State *L, int index);
