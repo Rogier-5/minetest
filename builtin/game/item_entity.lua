@@ -66,6 +66,7 @@ core.register_entity(":__builtin:item", {
 			visual_size = {x = s, y = s},
 			collisionbox = {-c, -c, -c, c, c, c},
 			automatic_rotate = math.pi * 0.5,
+			infotext = self.itemstring,
 		}
 		self.object:set_properties(prop)
 	end,
@@ -112,6 +113,7 @@ core.register_entity(":__builtin:item", {
 				count = count - max_count
 			else
 				self.itemstring = ''
+				self.object:set_properties({infotext = ''})
 			end
 			local pos = object:getpos()
 			pos.y = pos.y + (count - stack:get_count()) / max_count * 0.15
@@ -121,6 +123,7 @@ core.register_entity(":__builtin:item", {
 			local name = stack:get_name()
 			if not overflow then
 				obj.itemstring = name .. " " .. count
+				obj.object:set_properties({infotext = obj.itemstring})
 				s = 0.2 + 0.1 * (count / max_count)
 				c = s
 				object:set_properties({
@@ -138,6 +141,7 @@ core.register_entity(":__builtin:item", {
 					collisionbox = {-c, -c, -c, c, c, c}
 				})
 				obj.itemstring = name .. " " .. max_count
+				obj.object:set_properties({infotext = obj.itemstring})
 				s = 0.2 + 0.1 * (count / max_count)
 				c = s
 				self.object:set_properties({
@@ -145,6 +149,7 @@ core.register_entity(":__builtin:item", {
 					collisionbox = {-c, -c, -c, c, c, c}
 				})
 				self.itemstring = name .. " " .. count
+				self.object:set_properties({infotext = self.itemstring})
 			end
 		end
 		-- merging didn't succeed
@@ -155,6 +160,7 @@ core.register_entity(":__builtin:item", {
 		self.age = self.age + dtime
 		if time_to_live > 0 and self.age > time_to_live then
 			self.itemstring = ''
+			self.object:set_properties({infotext = ''})
 			self.object:remove()
 			return
 		end
@@ -207,10 +213,12 @@ core.register_entity(":__builtin:item", {
 			local left = inv:add_item("main", self.itemstring)
 			if left and not left:is_empty() then
 				self.itemstring = left:to_string()
+				self.object:set_properties({infotext = self.itemstring})
 				return
 			end
 		end
 		self.itemstring = ''
+		self.object:set_properties({infotext = ''})
 		self.object:remove()
 	end,
 })
