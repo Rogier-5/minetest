@@ -239,15 +239,23 @@ collisionMoveResult collisionMoveSimple(Environment *env, IGameDef *gamedef,
 	} else {
 		time_notification_done = false;
 	}
-	*speed_f += accel_f * dtime;
+	v3f new_speed = *speed_f + accel_f * dtime;
 
 	// If there is no speed, there are no collisions
-	if (speed_f->getLength() == 0)
+	if (new_speed.getLength() == 0) {
+		*speed_f = new_speed;
 		return result;
+	}
 
 	// Limit speed for avoiding hangs
-	*speed_f = rangelim_v3f(*speed_f, v3f(-1,-1,-1) * OBJECT_MAX_SPEED * BS,
+	new_speed = rangelim_v3f(new_speed, v3f(-1,-1,-1) * OBJECT_MAX_SPEED * BS,
 		v3f(1,1,1) * OBJECT_MAX_SPEED * BS);
+	v3f real_accel = (new_speed - *speed_f) / dtime;
+
+	v3s16 oldpos_i = floatToInt(*pos_f, BS);
+	v3s16 newpos_i = floatToInt(*pos_f + *speed_f * dtime + 0.5 * dtime * dtime * real_accel, BS);
+
+	*speed_f = new_speed;
 
 	/*
 		Collect node boxes in movement range
@@ -257,8 +265,6 @@ collisionMoveResult collisionMoveSimple(Environment *env, IGameDef *gamedef,
 	//TimeTaker tt2("collisionMoveSimple collect boxes");
 	ScopeProfiler sp(g_profiler, "collisionMoveSimple collect boxes avg", SPT_AVG);
 
-	v3s16 oldpos_i = floatToInt(*pos_f, BS);
-	v3s16 newpos_i = floatToInt(*pos_f + *speed_f * dtime, BS);
 	s16 min_x = MYMIN(oldpos_i.X, newpos_i.X) + (box_0.MinEdge.X / BS) - 1;
 	s16 min_y = MYMIN(oldpos_i.Y, newpos_i.Y) + (box_0.MinEdge.Y / BS) - 1;
 	s16 min_z = MYMIN(oldpos_i.Z, newpos_i.Z) + (box_0.MinEdge.Z / BS) - 1;
