@@ -22,6 +22,7 @@ extern "C" {
 #include "lauxlib.h"
 }
 
+#include "log.h"
 #include "util/numeric.h"
 #include "util/string.h"
 #include "common/c_converter.h"
@@ -36,9 +37,31 @@ extern "C" {
 				" got " + lua_typename(L, t) + ")."); \
 		} \
 	} while(0)
-#define CHECK_POS_COORD(name) CHECK_TYPE(-1, "position coordinate '" name "'", LUA_TNUMBER)
+#define CHECK_POS_COORD(name, var)									\
+	do {												\
+		CHECK_TYPE(-1, "position coordinate '" name "'", LUA_TNUMBER);				\
+		(var) = lua_tonumber(L, -1);								\
+		/* This check also fails if the value is NaN */						\
+		if (!((var) * BS >= F1000_MIN && (var) * BS <= F1000_MAX))				\
+			luaL_error(L, "Value invalid or out of range: %s = %f; limits: %f .. %f",	\
+				(name), (var), F1000_MIN / BS, F1000_MAX / BS);				\
+	} while (0)
 #define CHECK_POS_TAB(index) CHECK_TYPE(index, "position", LUA_TTABLE)
 
+void check_range_f_alt(lua_State *L, float f,
+		float min, float max, float rmin, float rmax,
+		const char *msg1, const char *msg2)
+{
+	if (isnan(f))
+		luaL_error(L, "%s%s: invalid value: %f",
+			msg1, (msg2 ? msg2 : ""), f);
+	if (f < min || f > max)
+		luaL_error(L, "%s%s = %f: range:error: value must be between %f and %f",
+			msg1, (msg2 ? msg2 : ""), f, rmin, rmax);
+	if (f < rmin || f > rmax)
+		warningstream << msg1 << (msg2 ? msg2 : "") << " = " << f << ": range error: value must be between "
+			<< rmin << " and " << rmax << std::endl;
+}
 
 void push_v3f(lua_State *L, v3f p)
 {
@@ -78,12 +101,10 @@ v2s16 check_v2s16(lua_State *L, int index)
 	v2s16 p;
 	CHECK_POS_TAB(index);
 	lua_getfield(L, index, "x");
-	CHECK_POS_COORD("x");
-	p.X = lua_tonumber(L, -1);
+	CHECK_POS_COORD("x", p.X);
 	lua_pop(L, 1);
 	lua_getfield(L, index, "y");
-	CHECK_POS_COORD("y");
-	p.Y = lua_tonumber(L, -1);
+	CHECK_POS_COORD("y", p.Y);
 	lua_pop(L, 1);
 	return p;
 }
@@ -137,12 +158,10 @@ v2f check_v2f(lua_State *L, int index)
 	v2f p;
 	CHECK_POS_TAB(index);
 	lua_getfield(L, index, "x");
-	CHECK_POS_COORD("x");
-	p.X = lua_tonumber(L, -1);
+	CHECK_POS_COORD("x", p.X);
 	lua_pop(L, 1);
 	lua_getfield(L, index, "y");
-	CHECK_POS_COORD("y");
-	p.Y = lua_tonumber(L, -1);
+	CHECK_POS_COORD("y", p.Y);
 	lua_pop(L, 1);
 	return p;
 }
@@ -168,16 +187,13 @@ v3f check_v3f(lua_State *L, int index)
 	v3f pos;
 	CHECK_POS_TAB(index);
 	lua_getfield(L, index, "x");
-	CHECK_POS_COORD("x");
-	pos.X = lua_tonumber(L, -1);
+	CHECK_POS_COORD("x", pos.X);
 	lua_pop(L, 1);
 	lua_getfield(L, index, "y");
-	CHECK_POS_COORD("y");
-	pos.Y = lua_tonumber(L, -1);
+	CHECK_POS_COORD("y", pos.Y);
 	lua_pop(L, 1);
 	lua_getfield(L, index, "z");
-	CHECK_POS_COORD("z");
-	pos.Z = lua_tonumber(L, -1);
+	CHECK_POS_COORD("z", pos.Z);
 	lua_pop(L, 1);
 	return pos;
 }

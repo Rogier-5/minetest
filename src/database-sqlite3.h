@@ -56,6 +56,7 @@ private:
 
 	std::string m_savedir;
 
+	int m_wal_backlog;
 	sqlite3 *m_database;
 	sqlite3_stmt *m_stmt_read;
 	sqlite3_stmt *m_stmt_write;

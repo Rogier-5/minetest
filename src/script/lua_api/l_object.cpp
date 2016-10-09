@@ -830,6 +830,11 @@ int ObjectRef::l_setvelocity(lua_State *L)
 	LuaEntitySAO *co = getluaobject(ref);
 	if (co == NULL) return 0;
 	v3f pos = checkFloatPos(L, 2);
+	check_range_v3f_alt(L, pos / BS,
+		-OBJECT_MAX_SPEED * 10, OBJECT_MAX_SPEED * 10,
+		-OBJECT_MAX_SPEED, OBJECT_MAX_SPEED,
+		"setvelocity: value");
+	pos = rangelim_v3f(pos, v3f(1,1,1) * -OBJECT_MAX_SPEED * BS, v3f(1,1,1) * OBJECT_MAX_SPEED * BS);
 	// Do it
 	co->setVelocity(pos);
 	return 0;
@@ -883,6 +888,8 @@ int ObjectRef::l_setyaw(lua_State *L)
 	LuaEntitySAO *co = getluaobject(ref);
 	if (co == NULL) return 0;
 	float yaw = luaL_checknumber(L, 2) * core::RADTODEG;
+	check_range_f_alt(L, yaw, -720, 720, 0, 360, "setyaw: yaw");
+	yaw = sanitize_yaw(yaw);
 	// Do it
 	co->setYaw(yaw);
 	return 0;
@@ -1089,6 +1096,8 @@ int ObjectRef::l_set_look_vertical(lua_State *L)
 	PlayerSAO* co = getplayersao(ref);
 	if (co == NULL) return 0;
 	float pitch = luaL_checknumber(L, 2) * core::RADTODEG;
+	check_range_f_alt(L, pitch, -720, 720, -180, 180, "set_look_vertical: angle");
+	pitch = sanitize_pitch(pitch);
 	// Do it
 	co->setPitch(pitch);
 	return 1;
@@ -1102,6 +1111,8 @@ int ObjectRef::l_set_look_horizontal(lua_State *L)
 	PlayerSAO* co = getplayersao(ref);
 	if (co == NULL) return 0;
 	float yaw = luaL_checknumber(L, 2) * core::RADTODEG;
+	check_range_f_alt(L, yaw, -1080, 1080, -720, 720, "set_look_horizontal: yaw");
+	yaw = sanitize_yaw(yaw);
 	// Do it
 	co->setYaw(yaw);
 	return 1;
@@ -1120,6 +1131,8 @@ int ObjectRef::l_set_look_pitch(lua_State *L)
 	PlayerSAO* co = getplayersao(ref);
 	if (co == NULL) return 0;
 	float pitch = luaL_checknumber(L, 2) * core::RADTODEG;
+	check_range_f_alt(L, pitch, -720, 720, -180, 180, "set_look_pitch: pitch");
+	pitch = sanitize_pitch(pitch);
 	// Do it
 	co->setPitch(pitch);
 	return 1;
@@ -1138,6 +1151,8 @@ int ObjectRef::l_set_look_yaw(lua_State *L)
 	PlayerSAO* co = getplayersao(ref);
 	if (co == NULL) return 0;
 	float yaw = luaL_checknumber(L, 2) * core::RADTODEG;
+	check_range_f_alt(L, yaw, -1080, 1080, -720, 720, "l_set_look_yaw: yaw");
+	yaw = sanitize_yaw(yaw);
 	// Do it
 	co->setYaw(yaw);
 	return 1;

@@ -104,6 +104,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 // the file attempting to ensure a unique filename
 #define SCREENSHOT_MAX_SERIAL_TRIES 1000
 
+// Maximum speed (absolute value) for active objects.
+#define OBJECT_MAX_SPEED 500
 /*
     GUI related things
 */

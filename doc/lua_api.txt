@@ -2780,10 +2780,14 @@ This is basically a reference to a C++ `ServerActiveObject`
 
 ##### LuaEntitySAO-only (no-op for other objects)
 * `setvelocity({x=num, y=num, z=num})`
+    * The maximum velocity is 500.
+    * The core will prevent velocities from exceeding 500 in any direction.
 * `getvelocity()`: returns `{x=num, y=num, z=num}`
 * `setacceleration({x=num, y=num, z=num})`
 * `getacceleration()`: returns `{x=num, y=num, z=num}`
 * `setyaw(radians)`
+    * The yaw should be between 0 and 2*pi. Values that are not too far
+      outside this range (max 4*pi) also silently accepted, and adjusted.
 * `getyaw()`: returns number in radians
 * `settexturemod(mod)`
 * `setsprite(p={x=0,y=0}, num_frames=1, framelength=0.2,
@@ -2804,14 +2808,20 @@ This is basically a reference to a C++ `ServerActiveObject`
      * Angle is counter-clockwise from the +z direction.
 * `set_look_vertical(radians)`: sets look pitch
      * radians - Angle from looking forward, where positive is downwards.
+     * The angle should be between -pi/2 and pi/2
 * `set_look_horizontal(radians)`: sets look yaw
      * radians - Angle from the +z direction, where positive is counter-clockwise.
+     * The angle should be between 0 and 2*pi. Values that are not too far
+       outside this range (max 4*pi) also silently accepted, and adjusted.
 * `get_look_pitch()`: pitch in radians - Deprecated as broken. Use get_look_vertical.
      * Angle ranges between -pi/2 and pi/2, which are straight down and up respectively.
 * `get_look_yaw()`: yaw in radians - Deprecated as broken. Use get_look_horizontal.
      * Angle is counter-clockwise from the +x direction.
 * `set_look_pitch(radians)`: sets look pitch - Deprecated. Use set_look_vertical.
+     * The angle should be between -pi/2 and pi/2
 * `set_look_yaw(radians)`: sets look yaw - Deprecated. Use set_look_horizontal.
+     * The angle should be between 0 and 2*pi. Values that are not too far
+       outside this range (max 4*pi) also silently accepted, and adjusted.
 * `get_breath()`: returns players breath
 * `set_breath(value)`: sets players breath
      * values:
