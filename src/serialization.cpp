@@ -247,7 +247,7 @@ void compressBrotli(const std::string &data, std::ostream &os, u8 quality)
 
 void decompressBrotli(std::istream &is, std::ostream &os)
 {
-	BrotliState* b;
+	BrotliDecoderState* b;
 	const s32 bufsize = 16384;
 	char input_buffer[bufsize];
 	char output_buffer[bufsize];
@@ -256,7 +256,7 @@ void decompressBrotli(std::istream &is, std::ostream &os)
 	size_t input_bufsize;
 	const u8* input_bufp;
 
-	b = BrotliCreateState(NULL, NULL, NULL);
+	b = BrotliDecoderCreateInstance(NULL, NULL, NULL);
 	if(!b)
 		throw SerializationError("decompressBrotli: BrotliCreateState failed");
 
@@ -274,16 +274,17 @@ void decompressBrotli(std::istream &is, std::ostream &os)
 		if (input_bufsize == 0)
 			break;
 
-		BrotliResult status = BrotliDecompressStream(
+		BrotliDecoderResult status = BrotliDecoderDecompressStream(
+			b,
 			&input_bufsize, &input_bufp,
-			&output_bufsize, &output_bufp, NULL, b);
-		if (status == BROTLI_RESULT_ERROR)
+			&output_bufsize, &output_bufp, NULL);
+		if (status == BROTLI_DECODER_RESULT_ERROR)
 			throw SerializationError("decompressBrotli: BrotliDecompressStream failed");
 		int count = bufsize - output_bufsize;
 		if (count)
 			os.write(output_buffer, count);
 
-		if (status == BROTLI_RESULT_SUCCESS){
+		if (status == BROTLI_DECODER_RESULT_SUCCESS){
 			// Unget all the data that inflate didn't take
 			is.clear(); // Just in case EOF is set
 			for (u32 i = 0; i < input_bufsize; i++) {
@@ -296,7 +297,7 @@ void decompressBrotli(std::istream &is, std::ostream &os)
 		}
 	}
 
-	BrotliDestroyState(b);
+	BrotliDecoderDestroyInstance(b);
 }
 
 void compressZstd(SharedBuffer<u8> data, std::ostream &os, int level)
