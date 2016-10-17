@@ -20,6 +20,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "serialization.h"
 
 #include "util/serialize.h"
+#include "util/string.h"
 #if defined(_WIN32) && !defined(WIN32_NO_ZLIB_WINAPI)
 	#define ZLIB_WINAPI
 #endif
@@ -27,6 +28,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "zstd.h"
 #include <brotli/decode.h>
 #include <brotli/encode.h>
+#include <settings.h>
 #include <time.h>
 
 extern float g_decomptime;
@@ -429,8 +431,23 @@ void decompressZstd(std::istream &is, std::ostream &os)
 static void _compress(SharedBuffer<u8> data, std::ostream &os, u8 version)
 {
 	if (version >= 26) {
-		compressBrotli(data, os);
-		compressZstd(data, os);
+		std::string compression_name = lowercase(g_settings->get("compression"));
+		int compression_param = g_settings->getS32("compression_param");
+		if (compression_name == "none") {
+			writeU8(os, 0);
+			os << serializeLongString(std::string((const char *)&data[0], data.getSize()));
+		} else if (compression_name == "zlib") {
+			writeU8(os, 1);
+			compressZlib(data, os, compression_param);
+		} else if (compression_name == "zstd") {
+			writeU8(os, 2);
+			compressZstd(data, os, compression_param);
+		} else if (compression_name == "brotli") {
+			writeU8(os, 3);
+			compressBrotli(data, os, compression_param);
+		} else {
+			throw SerializationError(std::string("compress: invalid / unsupported compression format: ") + compression_name);
+		}
 		return;
 	} else if (version >= 11) {
 
@@ -492,8 +509,25 @@ void compress(const std::string &data, std::ostream &os, u8 version)
 static void _decompress(std::istream &is, std::ostream &os, u8 version)
 {
 	if (version >= 26) {
-		decompressBrotli(is, os);
-		decompressZstd(is, os);
+		u8 format = readU8(is);
+		switch (format) {
+			case 0:
+				os << deSerializeLongString(is);
+				break;
+			case 1:
+				decompressZlib(is, os);
+				break;
+			case 2:
+				decompressZstd(is, os);
+				break;
+			case 3:
+				decompressBrotli(is, os);
+				break;
+			default:
+				throw SerializationError(std::string("decompress: unsupported compression format: ") + std::to_string(format));
+				break;
+		}
+
 		return;
 	} else if (version >= 11) {
 

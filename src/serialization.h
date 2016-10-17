@@ -84,18 +84,22 @@ inline bool ser_ver_supported(s32 v) {
 	Misc. serialization functions
 */
 
+// Level: 1..9; default: ?
 void compressZlib(SharedBuffer<u8> data, std::ostream &os, int level = -1);
 void compressZlib(const std::string &data, std::ostream &os, int level = -1);
 void decompressZlib(std::istream &is, std::ostream &os);
 
+// Quality: 0..11; default: 11
 void compressBrotli(SharedBuffer<u8> data, std::ostream &os, u8 quality=6);
 void compressBrotli(const std::string &data, std::ostream &os, u8 quality=6);
 void decompressBrotli(std::istream &is, std::ostream &os);
+
+// Level: 1..22; default: 3
 void compressZstd(SharedBuffer<u8> data, std::ostream &os, int level = 7);
 void compressZstd(const std::string &data, std::ostream &os, int level = 7);
 void decompressZstd(std::istream &is, std::ostream &os);
 
-// These choose between brotli, zstd, zlib and a self-made one according to version
+// These choose between the different compression algorithms
 void compress(SharedBuffer<u8> data, std::ostream &os, u8 version);
 void compress(const std::string &data, std::ostream &os, u8 version);
 void decompress(std::istream &is, std::ostream &os, u8 version);
