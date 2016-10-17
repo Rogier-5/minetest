@@ -620,12 +620,9 @@ void MapNode::serializeBulk(std::ostream &os, int version,
 		Compress data to output stream
 	*/
 
-	if(compressed)
-	{
+	if (compressed) {
 		compress(databuf, os, version);
-	}
-	else
-	{
+	} else {
 		os.write((const char*) &databuf[0], databuf.getSize());
 	}
 }
@@ -646,8 +643,7 @@ void MapNode::deSerializeBulk(std::istream &is, int version,
 	// Uncompress or read data
 	u32 len = nodecount * (content_width + params_width);
 	SharedBuffer<u8> databuf(len);
-	if(compressed)
-	{
+	if (compressed) {
 		std::ostringstream os(std::ios_base::binary);
 		decompress(is, os, version);
 		std::string s = os.str();
@@ -655,9 +651,7 @@ void MapNode::deSerializeBulk(std::istream &is, int version,
 			throw SerializationError("deSerializeBulkNodes: "
 					"decompress resulted in invalid size");
 		memcpy(&databuf[0], s.c_str(), len);
-	}
-	else
-	{
+	} else {
 		is.read((char*) &databuf[0], len);
 		if(is.eof() || is.fail())
 			throw SerializationError("deSerializeBulkNodes: "

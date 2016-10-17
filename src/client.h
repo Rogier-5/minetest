@@ -462,7 +462,7 @@ public:
 	u16 getHP();
 	u16 getBreath();
 
-	bool checkPrivilege(const std::string &priv)
+	bool checkPrivilege(const std::string &priv) const
 	{ return (m_privileges.count(priv) != 0); }
 
 	bool getChatMessage(std::wstring &message);
@@ -663,18 +663,18 @@ private:
 	// Sounds
 	float m_removed_sounds_check_timer;
 	// Mapping from server sound ids to our sound ids
-	std::map<s32, int> m_sounds_server_to_client;
+	UNORDERED_MAP<s32, int> m_sounds_server_to_client;
 	// And the other way!
-	std::map<int, s32> m_sounds_client_to_server;
+	UNORDERED_MAP<int, s32> m_sounds_client_to_server;
 	// And relations to objects
-	std::map<int, u16> m_sounds_to_objects;
+	UNORDERED_MAP<int, u16> m_sounds_to_objects;
 
 	// Privileges
-	std::set<std::string> m_privileges;
+	UNORDERED_SET<std::string> m_privileges;
 
 	// Detached inventories
 	// key = name
-	std::map<std::string, Inventory*> m_detached_inventories;
+	UNORDERED_MAP<std::string, Inventory*> m_detached_inventories;
 
 	// Storage for mesh data for creating multiple instances of the same mesh
 	StringMap m_mesh_data;

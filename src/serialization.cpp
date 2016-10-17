@@ -24,6 +24,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 	#define ZLIB_WINAPI
 #endif
 #include <zlib.h>
+#include "zstd.h"
 #include <brotli/decode.h>
 #include <brotli/encode.h>
 #include <time.h>
@@ -36,7 +37,7 @@ extern u32 g_decompdata;
 
 /* report a zlib or i/o error */
 void zerr(int ret)
-{   
+{
     dstream<<"zerr: ";
     switch (ret) {
     case Z_ERRNO:
@@ -77,7 +78,7 @@ void compressZlib(SharedBuffer<u8> data, std::ostream &os, int level)
 	ret = deflateInit(&z, level);
 	if(ret != Z_OK)
 		throw SerializationError("compressZlib: deflateInit failed");
-	
+
 	// Point zlib to our input buffer
 	z.next_in = (Bytef*)&data[0];
 	z.avail_in = data.getSize();
@@ -86,7 +87,7 @@ void compressZlib(SharedBuffer<u8> data, std::ostream &os, int level)
 	{
 		z.next_out = (Bytef*)output_buffer;
 		z.avail_out = bufsize;
-		
+
 		status = deflate(&z, Z_FINISH);
 		if(status == Z_NEED_DICT || status == Z_DATA_ERROR
 				|| status == Z_MEM_ERROR)
@@ -129,9 +130,9 @@ void decompressZlib(std::istream &is, std::ostream &os)
 	ret = inflateInit(&z);
 	if(ret != Z_OK)
 		throw SerializationError("decompressZlib: inflateInit failed");
-	
+
 	z.avail_in = 0;
-	
+
 	//dstream<<"initial fail="<<is.fail()<<" bad="<<is.bad()<<std::endl;
 
 	for(;;)
@@ -152,7 +153,7 @@ void decompressZlib(std::istream &is, std::ostream &os)
 			//dstream<<"z.avail_in == 0"<<std::endl;
 			break;
 		}
-			
+
 		//dstream<<"1 z.avail_in="<<z.avail_in<<std::endl;
 		status = inflate(&z, Z_NO_FLUSH);
 		//dstream<<"2 z.avail_in="<<z.avail_in<<std::endl;
@@ -172,7 +173,7 @@ void decompressZlib(std::istream &is, std::ostream &os)
 		if(status == Z_STREAM_END)
 		{
 			//dstream<<"Z_STREAM_END"<<std::endl;
-			
+
 			//dstream<<"z.avail_in="<<z.avail_in<<std::endl;
 			//dstream<<"fail="<<is.fail()<<" bad="<<is.bad()<<std::endl;
 			// Unget all the data that inflate didn't take
@@ -187,7 +188,7 @@ void decompressZlib(std::istream &is, std::ostream &os)
 					throw SerializationError("decompressZlib: unget failed");
 				}
 			}
-			
+
 			break;
 		}
 	}
@@ -296,25 +297,156 @@ void decompressBrotli(std::istream &is, std::ostream &os)
 	BrotliDestroyState(b);
 }
 
+void compressZstd(SharedBuffer<u8> data, std::ostream &os, int level)
+{
+	ZSTD_CStream *stream = ZSTD_createCStream();
+	ZSTD_initCStream(stream, level);
+
+	size_t result;
+
+	ZSTD_inBuffer in_buf;
+	in_buf.src = (Bytef*)&data[0];
+	in_buf.size = data.getSize();
+	in_buf.pos = 0;
+
+	const s32 buf_size = 16384;
+	char buf[buf_size];
+
+	ZSTD_outBuffer out_buf;
+	out_buf.dst = buf;
+	out_buf.size = buf_size;
+	out_buf.pos = 0;
+
+	// Write the buffer and put whatever compressed stuff we got
+	// into the out buffer.
+	while (in_buf.pos < in_buf.size) {
+		result = ZSTD_compressStream(stream, &out_buf, &in_buf);
+		if (ZSTD_isError(result)) {
+			ZSTD_freeCStream(stream);
+			throw SerializationError("compressZstd: compression failed: "
+				+ std::string(ZSTD_getErrorName(result)));
+		}
+		if (out_buf.pos) {
+			os.write(buf, out_buf.pos);
+			out_buf.pos = 0;
+		}
+	}
+
+	// Now finalize the stream.
+	for (;;) {
+		result = ZSTD_endStream(stream, &out_buf);
+		if (ZSTD_isError(result)) {
+			ZSTD_freeCStream(stream);
+			throw SerializationError("compressZstd: compression failed: "
+				+ std::string(ZSTD_getErrorName(result)));
+		}
+		if (out_buf.pos) {
+			os.write(buf, out_buf.pos);
+			out_buf.pos = 0;
+		}
+		// If the internal buffer is cleared
+		if (result == 0) {
+			break;
+		}
+	}
+
+	ZSTD_freeCStream(stream);
+}
+
+void compressZstd(const std::string &data, std::ostream &os, int level)
+{
+	SharedBuffer<u8> databuf((u8*)data.c_str(), data.size());
+	compressZstd(databuf, os, level);
+}
+
+void decompressZstd(std::istream &is, std::ostream &os)
+{
+	ZSTD_DStream *stream = ZSTD_createDStream();
+	ZSTD_initDStream(stream);
+	size_t result;
+
+	const s32 in_buf_size = 16384;
+	char in_buf_d[in_buf_size];
+
+	const s32 out_buf_size = 16384;
+	char out_buf_d[out_buf_size];
+
+	is.read(in_buf_d, in_buf_size);
+
+	ZSTD_inBuffer in_buf;
+	in_buf.src = in_buf_d;
+	in_buf.size = is.gcount();
+	in_buf.pos = 0;
+
+	ZSTD_outBuffer out_buf;
+	out_buf.dst = out_buf_d;
+	out_buf.size = out_buf_size;
+	out_buf.pos = 0;
+
+	while ((result = ZSTD_decompressStream(stream, &out_buf, &in_buf)) > 0) {
+		if (ZSTD_isError(result)) {
+			ZSTD_freeDStream(stream);
+			throw SerializationError("decompressZstd: decompression failed: "
+				+ std::string(ZSTD_getErrorName(result)));
+		}
+
+		// Reset the position to 0 if the input buffer has been fully read
+		if (in_buf.size == in_buf.pos) {
+			in_buf.size = 0;
+			in_buf.pos = 0;
+		}
+
+		// Refill the input buffer
+		is.read(&in_buf_d[in_buf.size], in_buf_size - in_buf.size);
+		in_buf.size += is.gcount();
+
+		// Flush the output buffer
+		if (out_buf.pos) {
+			os.write(out_buf_d, out_buf.pos);
+			out_buf.pos = 0;
+		}
+	}
+
+	// Flush the output buffer
+	if (out_buf.pos) {
+		os.write(out_buf_d, out_buf.pos);
+		out_buf.pos = 0;
+	}
+
+	// Unget all stuff that the decompressor didn't read
+	is.clear(); // Just in case EOF is set
+	while (in_buf.size > in_buf.pos) {
+		is.unget();
+		if (is.fail() || is.bad()) {
+			throw SerializationError("decompressZstd: unget failed");
+		}
+		in_buf.size--;
+	}
+
+	ZSTD_freeDStream(stream);
+}
+
 static void _compress(SharedBuffer<u8> data, std::ostream &os, u8 version)
 {
 	if (version >= 26) {
 		compressBrotli(data, os);
+		compressZstd(data, os);
 		return;
 	} else if (version >= 11) {
+
 		compressZlib(data, os);
 		return;
 	}
 
 	if(data.getSize() == 0)
 		return;
-	
+
 	// Write length (u32)
 
 	u8 tmp[4];
 	writeU32(tmp, data.getSize());
 	os.write((char*)tmp, 4);
-	
+
 	// We will be writing 8-bit pairs of more_count and byte
 	u8 more_count = 0;
 	u8 current_byte = data[0];
@@ -356,12 +488,15 @@ void compress(const std::string &data, std::ostream &os, u8 version)
 	compress(databuf, os, version);
 }
 
+
 static void _decompress(std::istream &is, std::ostream &os, u8 version)
 {
 	if (version >= 26) {
 		decompressBrotli(is, os);
+		decompressZstd(is, os);
 		return;
 	} else if (version >= 11) {
+
 		decompressZlib(is, os);
 		return;
 	}
@@ -371,7 +506,7 @@ static void _decompress(std::istream &is, std::ostream &os, u8 version)
 	u8 tmp[4];
 	is.read((char*)tmp, 4);
 	u32 len = readU32(tmp);
-	
+
 	// We will be reading 8-bit pairs of more_count and byte
 	u32 count = 0;
 	for(;;)
@@ -380,7 +515,7 @@ static void _decompress(std::istream &is, std::ostream &os, u8 version)
 		u8 byte=0;
 
 		is.read((char*)&more_count, 1);
-		
+
 		is.read((char*)&byte, 1);
 
 		if(is.eof())

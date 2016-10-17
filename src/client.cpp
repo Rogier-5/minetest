@@ -303,7 +303,7 @@ Client::~Client()
 	delete m_inventory_from_server;
 
 	// Delete detached inventories
-	for (std::map<std::string, Inventory*>::iterator
+	for (UNORDERED_MAP<std::string, Inventory*>::iterator
 			i = m_detached_inventories.begin();
 			i != m_detached_inventories.end(); ++i) {
 		delete i->second;
@@ -623,10 +623,8 @@ void Client::step(float dtime)
 		Update positions of sounds attached to objects
 	*/
 	{
-		for(std::map<int, u16>::iterator
-				i = m_sounds_to_objects.begin();
-				i != m_sounds_to_objects.end(); ++i)
-		{
+		for(UNORDERED_MAP<int, u16>::iterator i = m_sounds_to_objects.begin();
+				i != m_sounds_to_objects.end(); ++i) {
 			int client_id = i->first;
 			u16 object_id = i->second;
 			ClientActiveObject *cao = m_env.getActiveObject(object_id);
@@ -645,8 +643,7 @@ void Client::step(float dtime)
 		m_removed_sounds_check_timer = 0;
 		// Find removed sounds and clear references to them
 		std::vector<s32> removed_server_ids;
-		for(std::map<s32, int>::iterator
-				i = m_sounds_server_to_client.begin();
+		for(UNORDERED_MAP<s32, int>::iterator i = m_sounds_server_to_client.begin();
 				i != m_sounds_server_to_client.end();) {
 			s32 server_id = i->first;
 			int client_id = i->second;
@@ -1437,7 +1434,7 @@ Inventory* Client::getInventory(const InventoryLocation &loc)
 	break;
 	case InventoryLocation::DETACHED:
 	{
-		if(m_detached_inventories.count(loc.name) == 0)
+		if (m_detached_inventories.count(loc.name) == 0)
 			return NULL;
 		return m_detached_inventories[loc.name];
 	}
