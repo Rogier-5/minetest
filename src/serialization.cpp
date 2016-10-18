@@ -33,7 +33,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <thread>
 
 extern float g_decomptime;
-extern u32 g_compdata;
+extern u64 g_compdata;
+extern u64 g_deser_data;
 
 extern float g_comptime;
 extern u32 g_decompdata;
@@ -508,10 +509,13 @@ static void _compress(SharedBuffer<u8> data, std::ostream &os, u8 version)
 void compress(SharedBuffer<u8> data, std::ostream &os, u8 version)
 {
 	clock_t t = clock();
+	std::streampos l = os.tellp();
 	_compress(data, os, version);
 	t = clock() - t;
 	g_comptime += (float)t / CLOCKS_PER_SEC;
 	g_decompdata += data.getSize();
+	l = os.tellp() - l;
+	g_deser_data += data.getSize() - l;
 }
 
 void compress(const std::string &data, std::ostream &os, u8 version)

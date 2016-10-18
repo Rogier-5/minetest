@@ -1026,7 +1026,9 @@ static void recompress_fast25(std::istream &is, std::ostream &os)
 }
 
 float g_comptime;
-u32 g_decompdata;
+u64 g_decompdata;
+float g_ser_time;
+u64 g_deser_data;
 
 static bool recompress_database(const GameParams &game_params, const Settings &cmd_args)
 {
@@ -1040,6 +1042,7 @@ static bool recompress_database(const GameParams &game_params, const Settings &c
 	Database *db = ((ServerMap*) &server.getMap())->dbase;
 
 	u32 count = 0;
+	u32 count_recomp = 0;
 	time_t last_update_time = 0;
 	bool &kill = *porting::signal_handler_killstatus();
 	const u8 serialize_as_ver = SER_FMT_VER_HIGHEST_WRITE;
@@ -1078,12 +1081,17 @@ static bool recompress_database(const GameParams &game_params, const Settings &c
 
 			std::ostringstream oss(std::ios_base::binary);
 			writeU8(oss, serialize_as_ver);
+			clock_t t = clock();
 			mb.serialize(oss, serialize_as_ver, true);
+			t = clock() - t;
+			g_ser_time += (float)t / CLOCKS_PER_SEC;
+			g_deser_data += oss.str().size();
 
 			db->saveBlock(*it, oss.str());
+			count_recomp++;
 		}
 
-		if (++count % 0xFF == 0 && time(NULL) - last_update_time >= 2) {
+		if (++count % 10000 == 0 && time(NULL) - last_update_time >= 2) {
 			std::cerr << " Recompressed " << count << " blocks, "
 				<< (100.0 * count / blocks.size()) << "% completed.\r";
 			db->endSave();
@@ -1094,19 +1102,27 @@ static bool recompress_database(const GameParams &game_params, const Settings &c
 	std::cerr << std::endl;
 	db->endSave();
 
-	actionstream << "############" << std::endl;
-	actionstream << "Recompressed blocks:            " << count << std::endl;
-	actionstream << "Total data (uncomp.):           " << (g_decompdata / 1024 / 1024) << " MB" << std::endl;
-	actionstream << "Total compression CPU time:     " << g_comptime << "s" << std::endl;
-	actionstream << "Compression CPU time per block: " << (g_comptime / count * 1000 * 1000) << "us" << std::endl;
-	actionstream << "Compression speed:              " << (g_decompdata / g_comptime / 1024) << " KB/s" << std::endl;
-	actionstream << "############" << std::endl;
+	actionstream << "##### " << g_settings->get("compression") << "-"
+		<< g_settings->getS32("compression_param") << " #######" << std::endl;
+	actionstream << "World:                            " << game_params.world_path << std::endl;
+	actionstream << "Total blocks:                     " << count << std::endl;
+	actionstream << "Recompressed blocks:              " << count_recomp << std::endl;
+	actionstream << "Total compression data (uncomp.): " << g_decompdata << " B" << std::endl;
+	actionstream << "Total compression CPU time:       " << g_comptime << "s" << std::endl;
+	actionstream << "Compression CPU time per block:   " << (g_comptime / count_recomp * 1000 * 1000) << "us" << std::endl;
+	actionstream << "Total block data (uncomp.):       " << g_deser_data << " B" << std::endl;
+	actionstream << "Total serialization CPU time:     " << g_ser_time << "s" << std::endl;
+	actionstream << "Serialization CPU time per block: " << (g_ser_time / count_recomp * 1000 * 1000) << "us" << std::endl;
+	actionstream << "Compression speed:                " << (g_decompdata / g_comptime / 1024) << " KB/s" << std::endl;
+	actionstream << "###################" << std::endl;
 
 	return true;
 }
 
 float g_decomptime;
-u32 g_compdata;
+u64 g_compdata;
+float g_deser_time;
+u64 g_ser_data;
 
 static bool decompresstimes_database(const GameParams &game_params, const Settings &cmd_args)
 {
@@ -1120,6 +1136,7 @@ static bool decompresstimes_database(const GameParams &game_params, const Settin
 	Database *db = ((ServerMap*) &server.getMap())->dbase;
 
 	u32 count = 0;
+	u32 count_v26 = 0;
 	time_t last_update_time = 0;
 	bool &kill = *porting::signal_handler_killstatus();
 	g_decomptime = 0.0;
@@ -1140,10 +1157,15 @@ static bool decompresstimes_database(const GameParams &game_params, const Settin
 
 		std::istringstream iss(data, std::ios_base::binary);
 		u8 ver = readU8(iss);
+		count_v26 += ver == 26;
 		MapBlock mb(NULL, v3s16(0,0,0), &server);
+		clock_t t = clock();
 		mb.deSerialize(iss, ver, false);
+		t = clock() - t;
+		g_deser_time += (float)t / CLOCKS_PER_SEC;
+		g_ser_data += data.size();
 
-		if (++count % 0xFF == 0 && time(NULL) - last_update_time >= 2) {
+		if (++count % 10000 == 0 && time(NULL) - last_update_time >= 2) {
 			std::cerr << (100.0 * count / blocks.size()) << "% completed\r";
 			last_update_time = time(NULL);
 		}
@@ -1151,11 +1173,17 @@ static bool decompresstimes_database(const GameParams &game_params, const Settin
 	std::cerr << std::endl;
 
 	actionstream << "############" << std::endl;
-	actionstream << "Total blocks:                     " << count << std::endl;
-	actionstream << "Total data (comp.):               " << (g_compdata / 1024 / 1024) << " MB" << std::endl;
-	actionstream << "Total decompression CPU time:     " << g_decomptime << "s" << std::endl;
-	actionstream << "Decompression CPU time per block: " << (g_decomptime / count * 1000 * 1000) << "us" << std::endl;
-	actionstream << "Decompression speed:              " << (g_compdata / g_decomptime / 1024) << " KB/s" << std::endl;
+	actionstream << "World:                              " << game_params.world_path << std::endl;
+	actionstream << "Total blocks:                       " << count << std::endl;
+	actionstream << "Blocks v26:                         " << count_v26 << std::endl;
+	actionstream << "Decompressed blocks:                " << count << std::endl;
+	actionstream << "Total compression data (comp.):     " << (g_compdata) << " B" << std::endl;
+	actionstream << "Total decompression CPU time:       " << g_decomptime << "s" << std::endl;
+	actionstream << "Decompression CPU time per block:   " << (g_decomptime / count * 1000 * 1000) << "us" << std::endl;
+	actionstream << "Total block data (ser.):            " << (g_ser_data) << " B" << std::endl;
+	actionstream << "Total deserialization CPU time:     " << g_deser_time << "s" << std::endl;
+	actionstream << "Deserialization CPU time per block: " << (g_deser_time / count * 1000 * 1000) << "us" << std::endl;
+	actionstream << "Decompression speed:                " << (g_compdata / g_decomptime / 1024) << " KB/s" << std::endl;
 	actionstream << "############" << std::endl;
 
 	return true;
