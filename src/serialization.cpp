@@ -281,8 +281,11 @@ void decompressBrotli(std::istream &is, std::ostream &os)
 			b,
 			&input_bufsize, &input_bufp,
 			&output_bufsize, &output_bufp, NULL);
-		if (status == BROTLI_DECODER_RESULT_ERROR)
-			throw SerializationError("decompressBrotli: BrotliDecompressStream failed");
+		if (status == BROTLI_DECODER_RESULT_ERROR) {
+			BrotliDecoderErrorCode code = BrotliDecoderGetErrorCode(b);
+			throw SerializationError(std::string("decompressBrotli: BrotliDecompressStream failed: ")
+				+ BrotliDecoderErrorString(code));
+		}
 		int count = bufsize - output_bufsize;
 		if (count)
 			os.write(output_buffer, count);
