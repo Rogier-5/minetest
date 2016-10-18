@@ -99,6 +99,11 @@ void compressZstd(SharedBuffer<u8> data, std::ostream &os, int level = 7);
 void compressZstd(const std::string &data, std::ostream &os, int level = 7);
 void decompressZstd(std::istream &is, std::ostream &os);
 
+// Accel: 1..??; default: 1 (higher is faster)
+void compressLz4(SharedBuffer<u8> data, std::ostream &os, int accel = 0);
+void compressLz4(const std::string &data, std::ostream &os, int accel = 0);
+void decompressLz4(std::istream &is, std::ostream &os);
+
 // These choose between the different compression algorithms
 void compress(SharedBuffer<u8> data, std::ostream &os, u8 version);
 void compress(const std::string &data, std::ostream &os, u8 version);

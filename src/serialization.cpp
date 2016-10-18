@@ -30,6 +30,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <brotli/encode.h>
 #include <settings.h>
 #include <time.h>
+#include <lz4.h>
 #include <thread>
 
 extern float g_decomptime;
@@ -444,6 +445,94 @@ void decompressZstd(std::istream &is, std::ostream &os)
 	//ZSTD_freeDStream(stream);
 }
 
+// Format: { <size> <compressed block of data> } * <size == 0>
+void compressLz4(SharedBuffer<u8> data, std::ostream &os, int accel)
+{
+	LZ4_stream_t *stream = LZ4_createStream();
+	if (!stream)
+		throw SerializationError("compressLz4: LZ4_createStream failed");
+
+
+	// Setting log_blocksize to 16 might fail (compressed size might exceed 64k)
+	// Don't change block size without reading lz4.h
+	const u8 log_blocksize = 15;
+	const size_t blocksize = 1 << log_blocksize;
+
+	u8 buffer[sizeof(u16) + LZ4_COMPRESSBOUND(blocksize)];
+
+	size_t data_size = data.getSize();
+
+	// Initial byte identifies format of the rest of the lz4 data.
+	buffer[0] = 0;
+	os.write((char *)buffer, 1);
+	// Block size: needed when decompressing
+	os.write((char *) &log_blocksize, 1);
+
+	for (int block = 0; block * blocksize < data_size; block++) {
+		int buf_size = LZ4_compress_fast_continue(
+			stream,
+			((const char *)&data[0]) + block * blocksize, ((char *)buffer) + sizeof(u16),
+			(block + 1) * blocksize < data_size ? blocksize : (data_size - 1) % blocksize + 1,
+			LZ4_COMPRESSBOUND(blocksize), 1);
+		if (buf_size <= 0)
+			throw SerializationError(std::string("compressLz4: LZ4_compress_fast_continue failed: code ") + std::to_string(buf_size));
+		if (buf_size >= 1<<16)
+			throw SerializationError("compressLz4: compressed block is larger than 64k");
+		writeU16(buffer, (u16) buf_size);
+		buf_size += sizeof(u16);
+		os.write((char *)buffer, buf_size);
+	}
+	writeU16(buffer, 0);
+	os.write((char *)buffer, sizeof(u16));
+
+	LZ4_freeStream(stream);
+}
+
+void compressLz4(const std::string &data, std::ostream &os, int level)
+{
+	SharedBuffer<u8> databuf((u8*)data.c_str(), data.size());
+	compressLz4(databuf, os, level);
+}
+
+void decompressLz4(std::istream &is, std::ostream &os)
+{
+	LZ4_streamDecode_t *stream = LZ4_createStreamDecode();
+	if(!stream)
+		throw SerializationError("decompressLz4: LZ4_createStreamDecode failed");
+
+	u8 format = readU8(is);
+	if (format != 0)
+		throw SerializationError(std::string("decompressLz4: unrecognised LZ4 serialisation format: ") + std::to_string(format));
+	u8 log_blocksize = readU8(is);
+	if (log_blocksize < 10 || log_blocksize > 16)
+		throw SerializationError(std::string("decompressLz4: unsupported LZ4 block size: ") + std::to_string(log_blocksize));
+	int blocksize = 1 << log_blocksize;
+
+	// Use 4 buffers. Don't change this without reading lz4.h
+	const int bufcount = 4;
+	char buffer[bufcount][blocksize];
+	char data[LZ4_COMPRESSBOUND(blocksize)];
+	int bx = 0;
+
+	int data_size = readU16(is);
+	while (data_size) {
+		if (data_size > LZ4_COMPRESSBOUND(blocksize))
+			throw SerializationError("decompressLz4: compressed data is too large (stream corrupt ?)");
+		is.read(data, data_size);
+		int size = LZ4_decompress_safe_continue(stream,
+			data, buffer[bx],
+			data_size, blocksize);
+		if (size <= 0) {
+			throw SerializationError("decompressLz4: LZ4_decompress_safe_continue failed");
+		}
+		os.write(buffer[bx], size);
+		bx = (bx + 1) % bufcount;
+		data_size = readU16(is);
+	}
+
+	LZ4_freeStreamDecode(stream);
+}
+
 static void _compress(SharedBuffer<u8> data, std::ostream &os, u8 version)
 {
 	if (version >= 26) {
@@ -461,6 +550,9 @@ static void _compress(SharedBuffer<u8> data, std::ostream &os, u8 version)
 		} else if (compression_name == "brotli") {
 			writeU8(os, 3);
 			compressBrotli(data, os, compression_param);
+		} else if (compression_name == "lz4") {
+			writeU8(os, 4);
+			compressLz4(data, os, compression_param);
 		} else {
 			throw SerializationError(std::string("compress: invalid / unsupported compression format: ") + compression_name);
 		}
@@ -541,6 +633,9 @@ static void _decompress(std::istream &is, std::ostream &os, u8 version)
 				break;
 			case 3:
 				decompressBrotli(is, os);
+				break;
+			case 4:
+				decompressLz4(is, os);
 				break;
 			default:
 				throw SerializationError(std::string("decompress: unsupported compression format: ") + std::to_string(format));
