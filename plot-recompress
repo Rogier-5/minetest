@@ -1,0 +1,49 @@
+#! /bin/bash
+
+if [ $# -ne 1 -o ! -d "$1" ]; then
+    echo "Usage: ${0##*/} dir" 1>&2
+    exit 1
+fi
+
+dir="$1"
+
+mkplot() {
+    local dataset="$1"
+    local field="$2"
+    local range="$3"
+    local title="$4"
+    cat plot.in \
+    | sed \
+    	-e "s/DATASET/$dataset/g" \
+    	-e "s/FIELD/$field/g" \
+	-e "s/RANGE/$range/g" \
+    	-e "s/OUTPUT/plot-$dataset-$field.png/g" \
+    	-e "s/TITLE/$title/g"
+    }
+
+doplot() {
+    local dataset="$1"
+    local field="$2"
+    local range="$3"
+    local title="$4"
+    mkplot "$dataset" "$field" "$range" "$title" > "$dir/plot-$dataset-$field.gp"
+    if ! (cd "$dir"; gnuplot "plot-$dataset-$field.gp"); then
+	echo "[Failed plot parameters: $*]"
+    fi
+    }
+
+doplot recompress comp_blocktime "[*:*]" "Block recompression time (µs)"
+doplot decompress comp_blocktime "[*:200]" "Block decompression time (µs)"
+doplot recompress ser_blocktime "[*:*]" "Block serialization time (µs)"
+doplot decompress ser_blocktime "[*:*]" "Block deserialization time (µs)"
+doplot decompress block_size "[*:2000]" "Average serialized size (Bytes)"
+doplot recompress db_block_size "[*:2000]" "Average database block size (Bytes)"
+doplot recompress db_size_block "[*:2000]" "Database size per block (Bytes)"
+
+doplot recompress time_user "[*:*]" "Recompression user time (s)"
+doplot recompress time_sys "[*:*]" "Recompression system time (s)"
+doplot recompress time_elapsed "[*:*]" "Recompression elapsed time (s)"
+
+doplot decompress time_user "[*:*]" "Decompression user time (s)"
+doplot decompress time_sys "[*:*]" "Decompression system time (s)"
+doplot decompress time_elapsed "[*:*]" "Decompression elapsed time (s)"

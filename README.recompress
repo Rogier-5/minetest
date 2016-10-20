@@ -1,0 +1,41 @@
+Test procedure:
+(not polished. It may work as advertised)
+
+Install software:
+- zstd
+- libbrotli
+	libbrotli commit: a2582349
+	brotli commit: a9f2344f
+- snappy
+- lz4
+- gnuplot
+- awk (there might be gawk dependencies)
+
+Prepare environment:
+(anything else may require changes to the scripts)
+- cd <minetest source directory>
+- Compile minetest (client), with -DRUN_IN_PLACE=1
+- mkdir /tmp/compress
+- cp worlds/myworld/map.sqlite /tmp/compress/map-myworld.sqlite
+- cp -a worlds/myworld /tmp/compress/zstd
+- cp -a worlds/myworld /tmp/compress/zlib
+- cp -a worlds/myworld /tmp/compress/brotli
+- cp -a worlds/myworld /tmp/compress/snappy
+- cp -a worlds/myworld /tmp/compress/lz4
+- cp -a worlds/myworld /tmp/compress/none
+- Add to minetest.conf:
+	compression = zlib
+	compression_param = -1
+
+Run & process tests:
+- ./recompress test-myworld myworld
+- ./analyze-recompress test-myworld
+- ./plot-recompress test-myworld
+
+Graphs & data will be in directory test-myworld
+
+Test another world:
+- cp worlds/myotherworld/map.sqlite /tmp/compress/map-myotherworld.sqlite
+- ./recompress test-myotherworld myotherworld
+- etc..
+

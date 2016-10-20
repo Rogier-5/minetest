@@ -1,0 +1,183 @@
+#! /bin/bash
+
+if [ $# -lt 2 -o $# -gt 3 ]; then
+	echo "Usage: ${0##*/} dir database [minetest]" 1>&2
+	exit 1
+fi
+
+dir="${1%/}"
+map="$2"
+mtsuffix="${3:+-$3}"
+
+if [ -x bin/minetestserver$suffix -a ! -x "bin/minetest$mtsuffix" ]; then
+    minetestserver="bin/minetestserver"
+elif [ -x bin/minetest$suffix -a ! -x "bin/minetestserver$mtsuffix" ]; then
+    minetestserver="bin/minetest --server"
+elif [ -x bin/minetest$suffix -a -x bin/minetestserver$suffix ]; then
+    if [ bin/minetest$suffix -nt bin/minetestserver$suffix ]; then
+	minetestserver="bin/minetest --server"
+    elif [ bin/minetestserver$suffix -nt bin/minetest$suffix ]; then
+	minetestserver="bin/minetestserver"
+    fi
+else
+    echo "${0##*/}: bin/minetest[server]$suffix not available" 1>&2
+    exit 2
+fi
+
+
+rm -f /tmp/recompress$mtsuffix.log /tmp/decompress$mtsuffix.log
+rm -rf "$dir"/*
+mkdir -p "$dir/log"
+
+if [ ! -d "$dir" ]; then
+	echo "Usage: ${0##*/} dir database" 1>&2
+	exit 1
+fi
+
+tidy_log() {
+	awk '
+		/Couldn.t find a locale directory/	{next}
+		/The following mods could not be found/	{next}
+		/" ".*" ".*" ".*" "/			{next}
+		/Ignoring CONTENT_IGNORE redefinition/	{next}
+							{print}
+	'
+}
+
+summarize_log() {
+	local fmt="$1"
+	local tparam="$2"
+	local param="$3"
+	local seq="$4"
+	local var="$5"
+	local filename="$dir/log/$fmt${var:+-$var}.$param-?ecompress-$seq.log"
+
+	awk '
+		BEGIN					{
+							title = "'"$fmt $tparam"'"
+							file = "'"$filename"'"
+							result1 = 0
+							result2 = 0
+							}
+		/Recompressed blocks/			{result1 = 1; t=1}
+		/Decompressed blocks/			{result2 = 1; t=2}
+		/user.*system/				{
+							if (t==1)
+								time1 = $3
+							else
+								time2 = $3
+							}
+		/ ##### /				{date = gensub(": ACTION.*","","",$0)}
+							{next}
+		END					{
+							printf "%-19s:  %-10s  [%-4s] %-19s  [%-4s] %-19s  %s\n",
+								date, title,
+								result1?"OK":"FAIL", time1,
+								result2?"OK":"FAIL", time2,
+								file
+							}
+				
+
+	'
+}
+
+run_recompress() {
+	local fmt="$1"
+	local param="$2"
+	local seq="$3"
+	local var="$4"
+	echo -e "/^compression/s/=.*/= $fmt/\n/^compression_param/s/=.*/= $param/\nwq" | ex - minetest.conf
+	cp "/tmp/compress/map-$map.sqlite" "/tmp/compress/$fmt/map.sqlite"
+	(
+		/usr/bin/time $minetestserver --recompress --world "/tmp/compress/$fmt"
+		local s="$(ls -s "/tmp/compress/$fmt/map.sqlite" | awk '{print $1}')"
+		sqlite3 "/tmp/compress/$fmt/map.sqlite" "VACUUM;"
+		echo "Database size:" \
+			"Data: $(sqlite3 "/tmp/compress/$fmt/map.sqlite" "select sum(length(data)) from blocks;")" \
+			"File: $(ls -s "/tmp/compress/$fmt/map.sqlite" | awk '{print $1}')" \
+			"(Pre-vacuum: $s)"
+		) \
+	|& tidy_log \
+	| tee "$dir/log/$fmt${var:+-$var}.$param-recompress-$seq.log"
+}
+
+run_decompress() {
+	local fmt="$1"
+	local param="$2"
+	local seq="$3"
+	local var="$4"
+	/usr/bin/time $minetestserver --decompresstimes --world "/tmp/compress/$fmt" \
+	|& tidy_log \
+	| tee "$dir/log/$fmt${var:+-$var}.$param-decompress-$seq.log"
+}
+
+iter=0
+while ((iter < 3)); do
+	echo "--- Iteration $iter ---"
+
+	param=1
+	# Create two data points for the graph
+	while ((param <= 12)); do
+	    ( run_recompress none $param $iter
+	      run_decompress none $param $iter ) \
+	    | summarize_log  none $param $param $iter
+	    ((param+=10))
+	done
+
+	param=0
+	while ((param <= 11)); do
+	#while ((param <= 9)); do
+	    ( run_recompress brotli $param $iter
+	      run_decompress brotli $param $iter ) \
+	    | summarize_log  brotli $param $param $iter
+	    ((param++))
+	done
+
+	param=1
+	#while ((param <= 22)); do
+	while ((param <= 11)); do
+	#while ((param <= 3)); do
+	    ( run_recompress zstd $param $iter
+	      run_decompress zstd $param $iter ) \
+	    | summarize_log  zstd $param $param $iter
+	    #((param+=2))
+	    ((param++))
+	done
+
+	param=1
+	while ((param <= 9)); do
+	    ( run_recompress zlib $param $iter
+	      run_decompress zlib $param $iter ) \
+	    | summarize_log  zlib $param $param $iter
+	    ((param++))
+	done
+
+	param=1
+	while ((param <= 12)); do
+	    ( run_recompress lz4 $param $iter a
+	      run_decompress lz4 $param $iter a ) \
+	    | summarize_log  lz4 $param $param $iter a
+	    ((param++))
+	done
+
+	param=1
+	while ((param <= 12)); do
+	    accel="$(awk 'BEGIN{printf "%d", 0.5+exp(log(2) * '$param')}')"
+	    ( run_recompress lz4 $accel $iter b
+	      run_decompress lz4 $accel $iter b ) \
+	    | summarize_log  lz4 $accel $param $iter b
+	    ((param++))
+	done
+
+	param=1
+	# Create two data points for the graph; Snappy does not use a parameter
+	while ((param <= 12)); do
+	    ( run_recompress snappy $param $iter
+	      run_decompress snappy $param $iter ) \
+	    | summarize_log  snappy $param $param $iter
+	    ((param+=10))
+	done
+
+	((iter++))
+done
+

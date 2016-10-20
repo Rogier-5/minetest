@@ -1,0 +1,61 @@
+set yrange RANGE
+#set y2range RANGE
+set xtics out 0,1
+set x2tics out
+set ytics out mirror
+#set y2tics out
+set logscale y
+set logscale y2
+set logscale x2
+set datafile separator ","
+set key autotitle columnheader outside
+set terminal png
+set term png size 900,500
+
+set output "OUTPUT"
+set title "TITLE"
+plot \
+	'plot.csv' \
+	    index "DATASET:brotli" \
+	    using "parameter":"FIELD" \
+	    axes x1y1 \
+	    with lines \
+		title "brotli" \
+	,'' \
+	    index "DATASET:lz4-a" \
+	    using "parameter":"FIELD" \
+	    axes x1y1 \
+	    with lines \
+		title "lz4-a" \
+	,'' \
+	    index "DATASET:zlib" \
+	    using "parameter":"FIELD" \
+	    axes x1y1 \
+	    with lines \
+		title "zlib" \
+	,'' \
+	    index "DATASET:zstd" \
+	    using "parameter":"FIELD" \
+	    axes x1y1 \
+	    with lines \
+		title "zstd" \
+	,'' \
+	    index "DATASET:snappy" \
+	    using "parameter":"FIELD" \
+	    axes x1y1 \
+	    with lines \
+		title "snappy" \
+	,'' \
+	    index "DATASET:none" \
+	    using "parameter":"FIELD" \
+	    axes x1y1 \
+	    with lines \
+		title "none" \
+	,'' \
+	    index "DATASET:lz4-b" \
+	    using "parameter":"FIELD" \
+	    axes x2y1 \
+	    with lines \
+		title "lz4-b" \
+
+#pause -1

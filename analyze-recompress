@@ -1,0 +1,173 @@
+#! /bin/bash
+
+analyze_files() {
+    awk '
+	function report() {
+					if (!OK) {
+						printf "%s: test failed\n", current_filename > "/dev/stderr"
+						return
+						}
+					printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s%s",
+						gensub(".*/","","",current_filename),
+						algorithm,
+						parameter,
+						testname,
+						seq,
+						ser_time,
+						ser_blocktime,
+						comp_time,
+						comp_blocktime,
+						comp_speed,
+						blocks,
+						comp_data_size,
+						ser_data_size,
+						ser_data_size/blocks,
+						dbblocks_size,
+						dbblocks_size/total_blocks,
+						db_size,
+						db_size/total_blocks,
+						time_user,
+						time_sys,
+						time_elapsed,
+						time_cpu,
+						"\n"
+	    				}
+	BEGIN				{
+					printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s%s",
+						"name",
+						"algorithm",
+						"parameter",
+						"testname",
+						"seq",
+						"ser_time",
+						"ser_blocktime",
+						"comp_time",
+						"comp_blocktime",
+						"comp_speed",
+						"blocks",
+						"comp_data_size",
+						"ser_data_size",
+						"block_size",
+						"db_blocks_size",
+						"db_block_size",
+						"db_size",
+						"db_size_block",
+						"time_user",
+						"time_sys",
+						"time_elapsed",
+						"time_cpu",
+						"\n"
+					}
+					{
+					if (FILENAME != current_filename) {
+					    if (current_filename != "")
+						report()
+					    fname_regex=".*/([a-z0-9-]+)\\.([0-9]+)-([a-z]+)-([0-9]+)\\.log"
+					    algorithm = gensub(fname_regex, "\\1", "", FILENAME)
+					    parameter = gensub(fname_regex, "\\2", "", FILENAME)
+					    testname = gensub(fname_regex, "\\3", "", FILENAME)
+					    seq = gensub(fname_regex, "\\4", "", FILENAME)
+					    current_filename = FILENAME
+					    dbblocks_size = 0
+					    db_size = 0
+					    OK = 0
+					    }
+					}
+	/##########/			{ OK = 1 }
+	/Total .*serialization CPU tim/	{ ser_time = $NF + 0 }
+	/.*erialization CPU time per/	{ ser_blocktime = $NF + 0 }
+	/Total .*compression CPU time/	{ comp_time = $NF + 0 }
+	/.*ompression CPU time per/	{ comp_blocktime = $NF + 0 }
+	/.*ompression speed/		{ comp_speed = $(NF-1) + 0 }
+	/Total compression data/	{ comp_data_size = $(NF-1) + 0 }
+	/Total block data/		{ ser_data_size = $(NF-1) + 0 }
+	/.*ecompressed blocks/		{ blocks = $NF + 0 }
+	/Total blocks/			{ total_blocks = $NF + 0 }
+	/Database size/			{
+					dbblocks_size = $4
+					db_size = $6 * 1024
+					}
+	/maxresident/			{
+					time_user = $1 + 0
+					time_sys = $2 + 0
+					time_elapsed = gensub(":.*","","",$3) * 60 + gensub(".*:","","",$3)
+					time_cpu = $4 + 0
+					}
+    	END				{
+					if (current_filename != "")
+					    report()
+					}
+    	' \
+	"$@"
+    }
+
+average() {
+    awk '
+	function report() {
+		for (i=6; i<=NF; i++)
+		    arg[i] /= arg[5]
+		printf "%s", gensub("-[0-9]+\\.log$","","",arg[1])
+		for (i=2; i<=NF; i++) {
+		    if (i>=5 && int(arg[i]) == arg[i])
+			printf ",%d", arg[i]
+		    else if (i>=5 && arg[i] > 1e5)
+			printf ",%.1f", arg[i]
+		    else
+			printf ",%s", arg[i]
+		}
+		printf "\n"
+		}
+	BEGIN	{
+		FS=","
+		OFS=","
+		}
+	/param/	{
+		$5="count"
+		print
+		next
+		}
+		{
+		tag = $2 "-" $3 "-" $4
+		if (tag != lasttag) {
+		    if (lasttag != "")
+		    	report()
+		    lasttag = tag
+		    for (i=1; i<=4; i++)
+			arg[i] = $i
+		    for (i=5; i<=NF; i++)
+			delete arg[i]
+		    }
+		arg[5]++
+		for (i=6; i<=NF; i++)
+		    arg[i] += $i
+		}
+	END	{
+		if (lasttag != "")
+		    report()
+		}
+	'
+    }
+
+prepare_gnuplot() {
+    sort -t, -k2,2 -k4,4 -k3,3n \
+    | awk '
+	BEGIN		{FS=","; OFS=","}
+    	NR==1		{heading=$0; next}
+	$4":"$2!=prev	{print "\n\n#"$4":"$2"\n" heading}
+			{prev=$4":"$2; print}
+	'
+    }
+
+if [ $# -ne 1 -o ! -d "$1" ]; then
+	echo "Usage: ${0##*/} dir" 1>&2
+	exit 1
+fi
+
+dir="$1"
+set - "$dir/log"/*.log
+
+analyze_files "$@" \
+| average \
+| tee "$dir/data.csv" \
+| prepare_gnuplot \
+> "$dir/plot.csv"
