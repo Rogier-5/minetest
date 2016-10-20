@@ -30,6 +30,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <brotli/encode.h>
 #include <settings.h>
 #include <time.h>
+#include <thread>
 
 extern float g_decomptime;
 extern u32 g_compdata;
@@ -308,7 +309,9 @@ void decompressBrotli(std::istream &is, std::ostream &os)
 
 void compressZstd(SharedBuffer<u8> data, std::ostream &os, int level)
 {
-	ZSTD_CStream *stream = ZSTD_createCStream();
+	static thread_local ZSTD_CStream *stream = 0;
+	if (!stream)
+		stream = ZSTD_createCStream();
 	ZSTD_initCStream(stream, level);
 
 	size_t result;
@@ -359,7 +362,7 @@ void compressZstd(SharedBuffer<u8> data, std::ostream &os, int level)
 		}
 	}
 
-	ZSTD_freeCStream(stream);
+	//ZSTD_freeCStream(stream);
 }
 
 void compressZstd(const std::string &data, std::ostream &os, int level)
@@ -370,7 +373,9 @@ void compressZstd(const std::string &data, std::ostream &os, int level)
 
 void decompressZstd(std::istream &is, std::ostream &os)
 {
-	ZSTD_DStream *stream = ZSTD_createDStream();
+	static thread_local ZSTD_DStream *stream = 0;
+	if (!stream)
+		stream = ZSTD_createDStream();
 	ZSTD_initDStream(stream);
 	size_t result;
 
@@ -432,7 +437,7 @@ void decompressZstd(std::istream &is, std::ostream &os)
 		in_buf.size--;
 	}
 
-	ZSTD_freeDStream(stream);
+	//ZSTD_freeDStream(stream);
 }
 
 static void _compress(SharedBuffer<u8> data, std::ostream &os, u8 version)
