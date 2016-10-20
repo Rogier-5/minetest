@@ -321,7 +321,10 @@ void compressZstd(SharedBuffer<u8> data, std::ostream &os, int level)
 	in_buf.size = data.getSize();
 	in_buf.pos = 0;
 
-	const s32 buf_size = 16384;
+	size_t buf_size = data.getSize();
+	if (buf_size > ZSTD_CStreamInSize())
+		buf_size = ZSTD_CStreamInSize();
+	buf_size = ZSTD_compressBound(buf_size);
 	char buf[buf_size];
 
 	ZSTD_outBuffer out_buf;
