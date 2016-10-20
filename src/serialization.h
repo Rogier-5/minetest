@@ -104,6 +104,10 @@ void compressLz4(SharedBuffer<u8> data, std::ostream &os, int accel = 0);
 void compressLz4(const std::string &data, std::ostream &os, int accel = 0);
 void decompressLz4(std::istream &is, std::ostream &os);
 
+void compressSnappy(SharedBuffer<u8> data, std::ostream &os);
+void compressSnappy(const std::string &data, std::ostream &os);
+void decompressSnappy(std::istream &is, std::ostream &os);
+
 // These choose between the different compression algorithms
 void compress(SharedBuffer<u8> data, std::ostream &os, u8 version);
 void compress(const std::string &data, std::ostream &os, u8 version);

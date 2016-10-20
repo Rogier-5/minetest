@@ -31,6 +31,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <settings.h>
 #include <time.h>
 #include <lz4.h>
+#include <snappy.h>
 #include <thread>
 
 extern float g_decomptime;
@@ -533,6 +534,29 @@ void decompressLz4(std::istream &is, std::ostream &os)
 	LZ4_freeStreamDecode(stream);
 }
 
+void compressSnappy(SharedBuffer<u8> data, std::ostream &os, int accel)
+{
+	std::string output;
+	snappy::Compress((const char *)&data[0], data.getSize(), &output);
+	os << serializeLongString(output);
+}
+
+void compressSnappy(const std::string &data, std::ostream &os, int level)
+{
+	SharedBuffer<u8> databuf((u8*)data.c_str(), data.size());
+	compressSnappy(databuf, os, level);
+}
+
+void decompressSnappy(std::istream &is, std::ostream &os)
+{
+	std::string input = deSerializeLongString(is);
+	std::string output;
+	bool ok = snappy::Uncompress(input.c_str(), input.size(), &output);
+	if (!ok)
+		throw SerializationError("decompressSnappy: decompression failed: data is corrupted");
+	os << output;
+}
+
 static void _compress(SharedBuffer<u8> data, std::ostream &os, u8 version)
 {
 	if (version >= 26) {
@@ -553,6 +577,9 @@ static void _compress(SharedBuffer<u8> data, std::ostream &os, u8 version)
 		} else if (compression_name == "lz4") {
 			writeU8(os, 4);
 			compressLz4(data, os, compression_param);
+		} else if (compression_name == "snappy") {
+			writeU8(os, 5);
+			compressSnappy(data, os, compression_param);
 		} else {
 			throw SerializationError(std::string("compress: invalid / unsupported compression format: ") + compression_name);
 		}
@@ -636,6 +663,9 @@ static void _decompress(std::istream &is, std::ostream &os, u8 version)
 				break;
 			case 4:
 				decompressLz4(is, os);
+				break;
+			case 5:
+				decompressSnappy(is, os);
 				break;
 			default:
 				throw SerializationError(std::string("decompress: unsupported compression format: ") + std::to_string(format));
