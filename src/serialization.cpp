@@ -25,7 +25,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 	#define ZLIB_WINAPI
 #endif
 #include <zlib.h>
-#include "zstd.h"
+#include <zstd.h>
 #include <brotli/decode.h>
 #include <brotli/encode.h>
 #include <settings.h>
