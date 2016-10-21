@@ -27,6 +27,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 	#pragma comment(lib, "Shell32.lib")
 #endif
 
+#include <malloc.h>
 #include "irrlicht.h" // createDevice
 
 #include "mainmenumanager.h"
@@ -147,6 +148,8 @@ int main(int argc, char *argv[])
 {
 	int retval;
 
+	mallopt(M_MMAP_MAX, 0);
+	mallopt(M_TRIM_THRESHOLD, 1024*1024*100);
 	debug_set_exception_handler();
 
 	g_logger.registerThread("Main");
