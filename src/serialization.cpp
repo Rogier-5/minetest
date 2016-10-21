@@ -232,7 +232,7 @@ void compressBrotli(SharedBuffer<u8> data, std::ostream &os, u8 quality)
 		if (count)
 			os.write(buffer, count);
 
-		if (!BrotliEncoderHasMoreOutput(b))
+		if (!input_bufsize && !BrotliEncoderHasMoreOutput(b))
 			break;
 	}
 
@@ -261,20 +261,23 @@ void decompressBrotli(std::istream &is, std::ostream &os)
 		throw SerializationError("decompressBrotli: BrotliCreateState failed");
 
 	input_bufsize = 0;
+	input_bufp = (u8*) input_buffer;
 
+	BrotliDecoderResult status = BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT;
 	for (;;) {
 		output_bufp = (u8*) output_buffer;
 		output_bufsize = bufsize;
 
-		if (input_bufsize == 0) {
+		if (input_bufsize == 0 || status == BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT) {
+			memmove(input_buffer, input_bufp, input_bufsize);
 			input_bufp = (u8*) input_buffer;
-			is.read(input_buffer, bufsize);
-			input_bufsize = is.gcount();
+			is.read(input_buffer + input_bufsize, bufsize - input_bufsize);
+			input_bufsize += is.gcount();
+			if (status == BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT && is.gcount() == 0)
+				throw SerializationError("decompressBrotli: Expected more data - stream is corrupted");
 		}
-		if (input_bufsize == 0)
-			break;
 
-		BrotliDecoderResult status = BrotliDecoderDecompressStream(
+		status = BrotliDecoderDecompressStream(
 			b,
 			&input_bufsize, &input_bufp,
 			&output_bufsize, &output_bufp, NULL);
