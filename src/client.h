@@ -201,6 +201,7 @@ struct ClientEvent
 			f32 maxsize;
 			bool collisiondetection;
 			bool collision_removal;
+			u16 attached_id;
 			bool vertical;
 			std::string *texture;
 			u32 id;
@@ -452,7 +453,10 @@ public:
 			core::line3d<f32> shootline_on_map
 	);
 
-	std::list<std::string> getConnectedPlayerNames();
+	const std::list<std::string> &getConnectedPlayerNames()
+	{
+		return m_env.getPlayerNames();
+	}
 
 	float getAnimationTime();
 
@@ -460,7 +464,6 @@ public:
 	void setCrack(int level, v3s16 pos);
 
 	u16 getHP();
-	u16 getBreath();
 
 	bool checkPrivilege(const std::string &priv) const
 	{ return (m_privileges.count(priv) != 0); }

@@ -22,7 +22,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "clientiface.h"
 #include "util/numeric.h"
 #include "util/mathconstants.h"
-#include "player.h"
+#include "remoteplayer.h"
 #include "settings.h"
 #include "mapblock.h"
 #include "network/connection.h"
@@ -77,9 +77,9 @@ void RemoteClient::GetNextBlocks (
 	if(m_nothing_to_send_pause_timer >= 0)
 		return;
 
-	Player *player = env->getPlayer(peer_id);
+	RemotePlayer *player = env->getPlayer(peer_id);
 	// This can happen sometimes; clients and players are not in perfect sync.
-	if(player == NULL)
+	if (player == NULL)
 		return;
 
 	// Won't send anything if already sending
@@ -627,12 +627,6 @@ std::vector<u16> ClientInterface::getClientIDs(ClientState min_state)
 	return reply;
 }
 
-std::vector<std::string> ClientInterface::getPlayerNames()
-{
-	return m_clients_names;
-}
-
-
 void ClientInterface::step(float dtime)
 {
 	m_print_info_timer += dtime;
@@ -645,8 +639,7 @@ void ClientInterface::step(float dtime)
 
 void ClientInterface::UpdatePlayerList()
 {
-	if (m_env != NULL)
-		{
+	if (m_env != NULL) {
 		std::vector<u16> clients = getClientIDs();
 		m_clients_names.clear();
 
@@ -654,10 +647,8 @@ void ClientInterface::UpdatePlayerList()
 		if(!clients.empty())
 			infostream<<"Players:"<<std::endl;
 
-		for(std::vector<u16>::iterator
-			i = clients.begin();
-			i != clients.end(); ++i) {
-			Player *player = m_env->getPlayer(*i);
+		for (std::vector<u16>::iterator i = clients.begin(); i != clients.end(); ++i) {
+			RemotePlayer *player = m_env->getPlayer(*i);
 
 			if (player == NULL)
 				continue;

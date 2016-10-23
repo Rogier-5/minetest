@@ -110,7 +110,7 @@ void Client::handleCommand_AuthAccept(NetworkPacket* pkt)
 	playerpos -= v3f(0, BS / 2, 0);
 
 	// Set player position
-	Player *player = m_env.getLocalPlayer();
+	LocalPlayer *player = m_env.getLocalPlayer();
 	assert(player != NULL);
 	player->setPosition(playerpos);
 
@@ -176,7 +176,7 @@ void Client::handleCommand_InitLegacy(NetworkPacket* pkt)
 
 
 	// Set player position
-	Player *player = m_env.getLocalPlayer();
+	LocalPlayer *player = m_env.getLocalPlayer();
 	assert(player != NULL);
 	player->setPosition(playerpos_f);
 
@@ -333,7 +333,7 @@ void Client::handleCommand_Inventory(NetworkPacket* pkt)
 	std::string datastring(pkt->getString(0), pkt->getSize());
 	std::istringstream is(datastring, std::ios_base::binary);
 
-	Player *player = m_env.getLocalPlayer();
+	LocalPlayer *player = m_env.getLocalPlayer();
 	assert(player != NULL);
 
 	player->inventory.deSerialize(is);
@@ -486,7 +486,7 @@ void Client::handleCommand_ActiveObjectMessages(NetworkPacket* pkt)
 
 void Client::handleCommand_Movement(NetworkPacket* pkt)
 {
-	Player *player = m_env.getLocalPlayer();
+	LocalPlayer *player = m_env.getLocalPlayer();
 	assert(player != NULL);
 
 	float mad, maa, maf, msw, mscr, msf, mscl, msj, lf, lfs, ls, g;
@@ -511,7 +511,7 @@ void Client::handleCommand_Movement(NetworkPacket* pkt)
 void Client::handleCommand_HP(NetworkPacket* pkt)
 {
 
-	Player *player = m_env.getLocalPlayer();
+	LocalPlayer *player = m_env.getLocalPlayer();
 	assert(player != NULL);
 
 	u8 oldhp   = player->hp;
@@ -532,7 +532,7 @@ void Client::handleCommand_HP(NetworkPacket* pkt)
 
 void Client::handleCommand_Breath(NetworkPacket* pkt)
 {
-	Player *player = m_env.getLocalPlayer();
+	LocalPlayer *player = m_env.getLocalPlayer();
 	assert(player != NULL);
 
 	u16 breath;
@@ -544,7 +544,7 @@ void Client::handleCommand_Breath(NetworkPacket* pkt)
 
 void Client::handleCommand_MovePlayer(NetworkPacket* pkt)
 {
-	Player *player = m_env.getLocalPlayer();
+	LocalPlayer *player = m_env.getLocalPlayer();
 	assert(player != NULL);
 
 	v3f pos;
@@ -840,7 +840,7 @@ void Client::handleCommand_Privileges(NetworkPacket* pkt)
 
 void Client::handleCommand_InventoryFormSpec(NetworkPacket* pkt)
 {
-	Player *player = m_env.getLocalPlayer();
+	LocalPlayer *player = m_env.getLocalPlayer();
 	assert(player != NULL);
 
 	// Store formspec in LocalPlayer
@@ -944,9 +944,11 @@ void Client::handleCommand_AddParticleSpawner(NetworkPacket* pkt)
 
 	bool vertical = false;
 	bool collision_removal = false;
+	u16 attached_id = 0;
 	try {
 		*pkt >> vertical;
 		*pkt >> collision_removal;
+		*pkt >> attached_id;
 
 	} catch (...) {}
 
@@ -966,6 +968,7 @@ void Client::handleCommand_AddParticleSpawner(NetworkPacket* pkt)
 	event.add_particlespawner.maxsize            = maxsize;
 	event.add_particlespawner.collisiondetection = collisiondetection;
 	event.add_particlespawner.collision_removal  = collision_removal;
+	event.add_particlespawner.attached_id        = attached_id;
 	event.add_particlespawner.vertical           = vertical;
 	event.add_particlespawner.texture            = new std::string(texture);
 	event.add_particlespawner.id                 = id;
@@ -1098,7 +1101,7 @@ void Client::handleCommand_HudSetFlags(NetworkPacket* pkt)
 
 	*pkt >> flags >> mask;
 
-	Player *player = m_env.getLocalPlayer();
+	LocalPlayer *player = m_env.getLocalPlayer();
 	assert(player != NULL);
 
 	bool was_minimap_visible = player->hud_flags & HUD_FLAG_MINIMAP_VISIBLE;
@@ -1122,7 +1125,7 @@ void Client::handleCommand_HudSetParam(NetworkPacket* pkt)
 
 	*pkt >> param >> value;
 
-	Player *player = m_env.getLocalPlayer();
+	LocalPlayer *player = m_env.getLocalPlayer();
 	assert(player != NULL);
 
 	if (param == HUD_PARAM_HOTBAR_ITEMCOUNT && value.size() == 4) {
@@ -1131,10 +1134,10 @@ void Client::handleCommand_HudSetParam(NetworkPacket* pkt)
 			player->hud_hotbar_itemcount = hotbar_itemcount;
 	}
 	else if (param == HUD_PARAM_HOTBAR_IMAGE) {
-		((LocalPlayer *) player)->hotbar_image = value;
+		player->hotbar_image = value;
 	}
 	else if (param == HUD_PARAM_HOTBAR_SELECTED_IMAGE) {
-		((LocalPlayer *) player)->hotbar_selected_image = value;
+		player->hotbar_selected_image = value;
 	}
 }
 
