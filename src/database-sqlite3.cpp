@@ -46,6 +46,8 @@ SQLite format specification:
 #define BUSY_FATAL_TRESHOLD	10000	// Allow SQLITE_BUSY to be returned, which will cause a minetest crash.
 #define BUSY_ERROR_INTERVAL	2000	// Report again regularly while the situation lasts
 
+#include <util/timestat.h>
+extern TimeStat g_checkpoint_stat;
 
 #define SQLRES(s, r, m) \
 	if ((s) != (r)) { \
@@ -231,6 +233,7 @@ void SQLite3::setAutoCheckpoint(bool enable)
 
 void SQLite3::checkpointWALPassive()
 {
+	Timer t(g_checkpoint_stat);
 	int total_wal_frames;
 	int checkpointed_frames;
 	SQLOK(sqlite3_wal_checkpoint_v2(m_database, NULL,

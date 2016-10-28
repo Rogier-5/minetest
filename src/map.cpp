@@ -57,6 +57,14 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #define PP(x) "("<<(x).X<<","<<(x).Y<<","<<(x).Z<<")"
 
+#include "util/timestat.h"
+extern TimeStat g_beginsave_stat;
+extern TimeStat g_endsave_stat;
+extern TimeStat g_saveblock_stat;
+extern TimeStat g_loadblock_stat;
+extern TimeStat g_transaction_stat;
+extern TimeStat g_block_save_stat;
+static TimeStat transaction_data(1);
 
 /*
 	Map
@@ -2806,12 +2814,25 @@ Database *ServerMap::createDatabase(
 
 void ServerMap::beginSave()
 {
+	Timer t(g_beginsave_stat);
+	transaction_data.reset();
+	Timer t2(transaction_data);
 	dbase->beginSave();
 }
 
 void ServerMap::endSave()
 {
-	dbase->endSave();
+	{
+		Timer t(g_endsave_stat);
+		Timer t2(transaction_data);
+		dbase->endSave();
+	}
+	if (transaction_data.cpu.n > 2) {
+		g_transaction_stat.cpu.record(transaction_data.cpu.sum);
+		g_transaction_stat.clock.record(transaction_data.clock.sum);
+		g_block_save_stat.cpu.record(transaction_data.cpu.sum / (transaction_data.cpu.n - 2));
+		g_block_save_stat.clock.record(transaction_data.clock.sum / (transaction_data.clock.n - 2));
+	}
 }
 
 bool ServerMap::saveBlock(MapBlock *block)
@@ -2842,7 +2863,12 @@ bool ServerMap::saveBlock(MapBlock *block, Database *db)
 	block->serialize(o, version, true);
 
 	std::string data = o.str();
-	bool ret = db->saveBlock(p3d, data);
+	bool ret;
+	{
+		Timer t(g_saveblock_stat);
+		Timer t2(transaction_data);
+		ret = db->saveBlock(p3d, data);
+	}
 	if (ret) {
 		// We just wrote it to the disk so clear modified flag
 		block->resetModified();
@@ -3002,7 +3028,11 @@ MapBlock* ServerMap::loadBlock(v3s16 blockpos)
 	v2s16 p2d(blockpos.X, blockpos.Z);
 
 	std::string ret;
-	dbase->loadBlock(blockpos, &ret);
+	{
+		Timer t(g_loadblock_stat);
+		Timer t2(transaction_data);
+		dbase->loadBlock(blockpos, &ret);
+	}
 	if (ret != "") {
 		loadBlock(&ret, blockpos, createSector(p2d), false);
 		return getBlockNoCreateNoEx(blockpos);

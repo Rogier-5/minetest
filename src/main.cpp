@@ -65,6 +65,16 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define DEBUGFILE "debug.txt"
 #define DEFAULT_SERVER_PORT 30000
 
+#include "util/timestat.h"
+TimeStat g_beginsave_stat(1000);
+TimeStat g_endsave_stat(1000);
+TimeStat g_saveblock_stat(1000);
+TimeStat g_loadblock_stat(1000);
+TimeStat g_transaction_stat(1000);
+TimeStat g_block_save_stat(1000);
+TimeStat g_checkpoint_stat(1000);
+void report_database_statistics(time_t);
+
 typedef std::map<std::string, ValueSpec> OptionList;
 
 /**********************************************************************
@@ -235,6 +245,8 @@ int main(int argc, char *argv[])
 
 	// Stop httpfetch thread (if started)
 	httpfetch_cleanup();
+
+	report_database_statistics(0);
 
 	END_DEBUG_EXCEPTION_HANDLER
 
@@ -971,3 +983,25 @@ static bool migrate_database(const GameParams &game_params, const Settings &cmd_
 	return true;
 }
 
+void report_database_statistics(time_t t)
+{
+	if (t)
+		actionstream << "############## Database statistics (" << t/3600.0 << "h) ##################" << std::endl;
+	else
+		actionstream << "############## Database statistics (END) ##################" << std::endl;
+	actionstream << "BeginSave CPU time:                    " << g_beginsave_stat.cpu.report() << std::endl;
+	actionstream << "BeginSave Clock time:                  " << g_beginsave_stat.clock.report() << std::endl;
+	actionstream << "EndSave CPU time:                      " << g_endsave_stat.cpu.report() << std::endl;
+	actionstream << "EndSave Clock time:                    " << g_endsave_stat.clock.report() << std::endl;
+	actionstream << "LoadBlock CPU time:                    " << g_loadblock_stat.cpu.report() << std::endl;
+	actionstream << "LoadBlock Clock time:                  " << g_loadblock_stat.clock.report() << std::endl;
+	actionstream << "SaveBlock CPU time:                    " << g_saveblock_stat.cpu.report() << std::endl;
+	actionstream << "SaveBlock Clock time:                  " << g_saveblock_stat.clock.report() << std::endl;
+	actionstream << "Transaction CPU time:                  " << g_transaction_stat.cpu.report() << std::endl;
+	actionstream << "Transaction Clock time:                " << g_transaction_stat.clock.report() << std::endl;
+	actionstream << "Average block save CPU time:           " << g_block_save_stat.cpu.report() << std::endl;
+	actionstream << "Average block save Clock time:         " << g_block_save_stat.clock.report() << std::endl;
+	actionstream << "Checkpoint CPU time:                   " << g_checkpoint_stat.cpu.report() << std::endl;
+	actionstream << "Checkpoint Clock time:                 " << g_checkpoint_stat.clock.report() << std::endl;
+	actionstream << "#####################################################" << std::endl;
+}

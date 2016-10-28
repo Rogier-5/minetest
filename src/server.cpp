@@ -63,6 +63,13 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "util/sha1.h"
 #include "util/hex.h"
 
+#include "util/timestat.h"
+extern TimeStat g_beginsave_stat;
+extern TimeStat g_endsave_stat;
+extern TimeStat g_saveblock_stat;
+extern TimeStat g_loadblock_stat;
+void report_database_statistics(time_t);
+
 class ClientNotFoundException : public BaseException
 {
 public:
@@ -93,11 +100,24 @@ void *ServerThread::run()
 
 	m_server->AsyncRunStep(true);
 
+	time_t start_time = time(NULL);
+	time_t settings_time = time(NULL);
+	time_t report_time = time(NULL);
+	int report_interval = g_settings->getU16("database_statistics_interval");
 	while (!stopRequested()) {
 		try {
 			//TimeTaker timer("AsyncRunStep() + Receive()");
 
 			m_server->AsyncRunStep();
+
+			if (time(NULL) - settings_time > 60) {
+				settings_time = time(NULL);
+				report_interval = g_settings->getU16("database_statistics_interval");
+			}
+			if (time(NULL) - report_time > report_interval) {
+				settings_time = report_time = time(NULL);
+				report_database_statistics(report_time - start_time);
+			}
 
 			m_server->Receive();
 
