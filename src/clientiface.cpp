@@ -241,9 +241,6 @@ void RemoteClient::GetNextBlocks (
 			if (blockpos_over_limit(p))
 				continue;
 
-			// If this is true, inexistent block will be made from scratch
-			bool generate = d <= d_max_gen;
-
 			/*
 				Don't generate or send if not in sight
 				FIXME This only works if the client uses a small enough
@@ -270,68 +267,39 @@ void RemoteClient::GetNextBlocks (
 			*/
 			MapBlock *block = env->getMap().getBlockNoCreateNoEx(p);
 
-			bool surely_not_found_on_disk = false;
-			bool block_is_invalid = false;
-			if(block != NULL)
-			{
-				// Reset usage timer, this block will be of use in the future.
+			// Reset usage timer, this block will be of use in the future.
+			if (block)
 				block->resetUsageTimer();
 
-				if(env->getMap().blockNotInDatabase(p))
-				{
-					surely_not_found_on_disk = true;
+			// Emerge block if needed and if possible
+			if (!block || !block->isGenerated()) {
+				bool generate = d <= d_max_gen;
+				bool maybe_in_database = !env->getMap().blockNotInDatabase(p);
+				if (generate || (!block && maybe_in_database)) {
+					if (emerge->enqueueBlockEmerge(peer_id, p, generate)) {
+						if (nearest_emerged_d == -1)
+							nearest_emerged_d = d;
+					} else {
+						if (nearest_emergefull_d == -1)
+							nearest_emergefull_d = d;
+						goto queue_full_break;
+					}
 				}
-
-				// Block is valid if lighting is up-to-date and data exists
-				if(block->isValid() == false)
-				{
-					block_is_invalid = true;
-				}
-
-				if(block->isGenerated() == false)
-					block_is_invalid = true;
-
-				/*
-					If block is not close, don't send it unless it is near
-					ground level.
-
-					Block is near ground level if night-time mesh
-					differs from day-time mesh.
-				*/
-				if(d >= d_opt)
-				{
-					if(block->getDayNightDiff() == false)
-						continue;
-				}
-			}
-
-			/*
-				If block is known to not exist on disk
-				and generating new ones is not wanted, skip block.
-			*/
-			if(generate == false && surely_not_found_on_disk == true)
-			{
-				// get next one.
 				continue;
 			}
 
-			/*
-				Add inexistent block to emerge queue.
-			*/
-			if(block == NULL || surely_not_found_on_disk || block_is_invalid)
-			{
-				if (emerge->enqueueBlockEmerge(peer_id, p, generate)) {
-					if (nearest_emerged_d == -1)
-						nearest_emerged_d = d;
-				} else {
-					if (nearest_emergefull_d == -1)
-						nearest_emergefull_d = d;
-					goto queue_full_break;
-				}
-
-				// get next one.
+			if (block->getLightingExpired())
 				continue;
-			}
+
+			/*
+				If block is not close, don't send it unless it is near
+				ground level
+
+				Block is near ground level if night-time mesh
+				differs from day-time mesh.
+			*/
+			if (d >= d_opt && block->getDayNightDiff() == false)
+				continue;
 
 			if(nearest_sent_d == -1)
 				nearest_sent_d = d;
