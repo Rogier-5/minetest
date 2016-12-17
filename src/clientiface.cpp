@@ -277,9 +277,7 @@ void RemoteClient::GetNextBlocks (
 				// Reset usage timer, this block will be of use in the future.
 				block->resetUsageTimer();
 
-				// Block is dummy if data doesn't exist.
-				// It means it has been not found from disk and not generated
-				if(block->isDummy())
+				if(env->getMap().blockNotInDatabase(p))
 				{
 					surely_not_found_on_disk = true;
 				}
@@ -308,7 +306,7 @@ void RemoteClient::GetNextBlocks (
 			}
 
 			/*
-				If block has been marked to not exist on disk (dummy)
+				If block is known to not exist on disk
 				and generating new ones is not wanted, skip block.
 			*/
 			if(generate == false && surely_not_found_on_disk == true)

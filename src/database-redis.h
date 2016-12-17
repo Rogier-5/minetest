@@ -39,10 +39,12 @@ public:
 	void beginSave();
 	void endSave();
 
-	bool saveBlock(const v3s16 &pos, const std::string &data);
-	void loadBlock(const v3s16 &pos, std::string *block);
-	bool deleteBlock(const v3s16 &pos);
 	void listAllLoadableBlocks(std::vector<v3s16> &dst);
+
+protected:
+	bool dbSaveBlock(const v3s16 &pos, const std::string &data);
+	void dbLoadBlock(const v3s16 &pos, std::string *block);
+	bool dbDeleteBlock(const v3s16 &pos);
 
 private:
 	redisContext *ctx;
