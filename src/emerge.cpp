@@ -271,23 +271,6 @@ bool EmergeManager::enqueueBlockEmergeEx(
 //
 
 
-// TODO(hmmmm): Move this to ServerMap
-v3s16 EmergeManager::getContainingChunk(v3s16 blockpos)
-{
-	return getContainingChunk(blockpos, mgparams->chunksize);
-}
-
-// TODO(hmmmm): Move this to ServerMap
-v3s16 EmergeManager::getContainingChunk(v3s16 blockpos, s16 chunksize)
-{
-	s16 coff = -chunksize / 2;
-	v3s16 chunk_offset(coff, coff, coff);
-
-	return getContainerPos(blockpos - chunk_offset, chunksize)
-		* chunksize + chunk_offset;
-}
-
-
 int EmergeManager::getSpawnLevelAtPoint(v2s16 p)
 {
 	if (m_mapgens.size() == 0 || !m_mapgens[0]) {
@@ -603,7 +586,7 @@ void *EmergeThread::run()
 			continue;
 		}
 
-		if (blockpos_over_limit(pos))
+		if (!m_map->blockPosInWorld(pos))
 			continue;
 
 		bool allow_gen = bedata.flags & BLOCK_EMERGE_ALLOW_GEN;

@@ -34,6 +34,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "util/container.h"
 #include "util/cpp11_container.h"
 #include "nodetimer.h"
+#include "mapgen.h"
 #include "map_settings_manager.h"
 
 class Settings;
@@ -490,6 +491,14 @@ public:
 
 	u64 getSeed();
 	s16 getWaterLevel();
+	bool blockPosInWorld(v3s16 blockpos)
+		{ return getMapgenParams()->blockPosInWorld(blockpos); }
+	bool blockPosIsStorable(v3s16 blockpos)
+		{ return getMapgenParams()->blockPosIsStorable(blockpos); }
+	bool objectPosInWorld(v3f objpos)
+		{ return getMapgenParams()->objectPosInWorld(objpos); }
+	bool objectPosIsStorable(v3f objpos)
+		{ return getMapgenParams()->objectPosIsStorable(objpos); }
 
 	MapSettingsManager settings_mgr;
 

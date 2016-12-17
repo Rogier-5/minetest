@@ -1761,7 +1761,8 @@ u16 ServerEnvironment::addActiveObjectRaw(ServerActiveObject *object,
 		return 0;
 	}
 
-	if (objectpos_over_limit(object->getBasePosition())) {
+	// If the object can't be saved, remove it
+	if (!m_map->objectPosIsStorable(object->getBasePosition())) {
 		v3f p = object->getBasePosition();
 		errorstream << "ServerEnvironment::addActiveObjectRaw(): "
 			<< "object position (" << p.X << "," << p.Y << "," << p.Z

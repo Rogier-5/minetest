@@ -1881,20 +1881,19 @@ s16 ServerMap::getWaterLevel()
 
 bool ServerMap::initBlockMake(v3s16 blockpos, BlockMakeData *data)
 {
-	s16 csize = getMapgenParams()->chunksize;
-	v3s16 bpmin = EmergeManager::getContainingChunk(blockpos, csize);
-	v3s16 bpmax = bpmin + v3s16(1, 1, 1) * (csize - 1);
+	v3s16 bpmin;
+	v3s16 bpmax;
+	v3s16 full_bpmin;
+	v3s16 full_bpmax;
+
+	getMapgenParams()->getChunkLimits(blockpos, &bpmin, &bpmax,
+		&full_bpmin, &full_bpmax);
 
 	bool enable_mapgen_debug_info = m_emerge->enable_mapgen_debug_info;
 	EMERGE_DBG_OUT("initBlockMake(): " PP(bpmin) " - " PP(bpmax));
 
-	v3s16 extra_borders(1, 1, 1);
-	v3s16 full_bpmin = bpmin - extra_borders;
-	v3s16 full_bpmax = bpmax + extra_borders;
-
-	// Do nothing if not inside limits (+-1 because of neighbors)
-	if (blockpos_over_limit(full_bpmin) ||
-		blockpos_over_limit(full_bpmax))
+	// Do nothing if not inside world
+	if (!blockPosInWorld(blockpos))
 		return false;
 
 	data->seed = getSeed();
@@ -2079,12 +2078,7 @@ ServerMapSector *ServerMap::createSector(v2s16 p2d)
 	/*
 		Do not create over-limit
 	*/
-	const static u16 map_gen_limit = MYMIN(MAX_MAP_GENERATION_LIMIT,
-		g_settings->getU16("map_generation_limit"));
-	if(p2d.X < -map_gen_limit / MAP_BLOCKSIZE
-			|| p2d.X >  map_gen_limit / MAP_BLOCKSIZE
-			|| p2d.Y < -map_gen_limit / MAP_BLOCKSIZE
-			|| p2d.Y >  map_gen_limit / MAP_BLOCKSIZE)
+	if (!getMapgenParams()->sectorPosIsStorable(p2d))
 		throw InvalidPositionException("createSector(): pos. over limit");
 
 	/*
@@ -2131,9 +2125,9 @@ MapBlock * ServerMap::generateBlock(
 	/*
 		Do not generate over-limit
 	*/
-	if(blockpos_over_limit(p))
+	if(!blockPosInWorld(p))
 	{
-		infostream<<FUNCTION_NAME<<": Block position over limit"<<std::endl;
+		infostream<<FUNCTION_NAME<<": Block position not in world"<<std::endl;
 		throw InvalidPositionException("generateBlock(): pos. over limit");
 	}
 
@@ -2228,8 +2222,11 @@ MapBlock * ServerMap::createBlock(v3s16 p)
 	/*
 		Do not create over-limit
 	*/
-	if (blockpos_over_limit(p))
-		throw InvalidPositionException("createBlock(): pos. over limit");
+	if (!blockPosIsStorable(p)) {
+		std::ostringstream oss;
+		oss << "ServerMap::createBlock(): pos not in world " << PP(p);
+		throw InvalidPositionException(oss.str());
+	}
 
 	v2s16 p2d(p.X, p.Z);
 	s16 block_y = p.Y;

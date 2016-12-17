@@ -125,15 +125,23 @@ struct MapgenParams {
 	u64 seed;
 	s16 water_level;
 	u32 flags;
+	// Maximum requested map coordinate
+	u16 absolute_map_limit;
+	// Min and max block that will be officially *generated*.
+	// One block more will actually exist in all directions,
+	// but it won't be marked as 'generated'.
+	v3s16 blockpos_min;
+	v3s16 blockpos_max;
 
 	BiomeParams *bparams;
 
 	MapgenParams() :
 		mgtype(MAPGEN_DEFAULT),
-		chunksize(5),
+		chunksize(0),
 		seed(0),
 		water_level(1),
 		flags(MG_CAVES | MG_LIGHT | MG_DECORATIONS),
+		absolute_map_limit(0),
 		bparams(NULL)
 	{
 	}
@@ -142,6 +150,20 @@ struct MapgenParams {
 
 	virtual void readParams(const Settings *settings);
 	virtual void writeParams(Settings *settings) const;
+
+	int computePositiveWorldLimit(int absolute_limit, int chunksize);
+	int computeNegativeWorldLimit(int absolute_limit, int chunksize);
+	void recomputeWorldLimits();
+	bool blockPosInWorld(v3s16 blockpos) const;
+	bool blockPosIsStorable(v3s16 blockpos) const;
+	bool sectorPosInWorld(v2s16 sectorpos) const;
+	bool sectorPosIsStorable(v2s16 sectorpos) const;
+	bool objectPosInWorld(v3f pos) const;
+	bool objectPosIsStorable(v3f pos) const;
+	v3s16 getContainingChunk(v3s16 blockpos) const;
+	void getChunkLimits(v3s16 blockpos, v3s16 *bpmin, v3s16 *bpmax,
+		v3s16 *bpmin_ext, v3s16 *bpmax_ext) const;
+
 };
 
 

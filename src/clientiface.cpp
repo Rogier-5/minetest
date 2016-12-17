@@ -238,7 +238,7 @@ void RemoteClient::GetNextBlocks (
 			/*
 				Do not go over-limit
 			*/
-			if (blockpos_over_limit(p))
+			if (!dynamic_cast<ServerMap &>(env->getMap()).blockPosInWorld(p))
 				continue;
 
 			// If this is true, inexistent block will be made from scratch

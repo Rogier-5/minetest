@@ -48,6 +48,10 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "mapgen_singlenode.h"
 #include "cavegen.h"
 #include "dungeongen.h"
+#include "exceptions.h"
+
+static const v3f unit_v3f(1,1,1);
+static const v3s16 unit_v3s16(1,1,1);
 
 FlagDesc flagdesc_mapgen[] = {
 	{"caves",       MG_CAVES},
@@ -988,8 +992,16 @@ void MapgenParams::readParams(const Settings *settings)
 		this->mgtype = Mapgen::getMapgenType(mg_name);
 
 	settings->getS16NoEx("water_level", water_level);
+	s16 chunksize_old = chunksize;
+	s16 map_limit_old = absolute_map_limit;
 	settings->getS16NoEx("chunksize", chunksize);
+	settings->getU16NoEx("map_generation_limit", absolute_map_limit);
+	if (absolute_map_limit > MAX_MAP_GENERATION_LIMIT)
+		absolute_map_limit = MAX_MAP_GENERATION_LIMIT;
 	settings->getFlagStrNoEx("mg_flags", flags, flagdesc_mapgen);
+
+	if (chunksize_old != chunksize || map_limit_old != absolute_map_limit)
+		recomputeWorldLimits();
 
 	delete bparams;
 	bparams = BiomeManager::createBiomeParams(BIOMEGEN_ORIGINAL);
@@ -1010,4 +1022,137 @@ void MapgenParams::writeParams(Settings *settings) const
 
 	if (bparams)
 		bparams->writeParams(settings);
+}
+
+
+int MapgenParams::computePositiveWorldLimit(int absolute_limit, int chunksize)
+{
+	int chunk_offset = -chunksize / 2;
+
+	// No node in max_block may be beyond absolute_map_limit
+	int max_block = getContainerPos(absolute_map_limit + 1, MAP_BLOCKSIZE) - 1;
+	// No block in max_chunk may be beyond max_block
+	int max_chunk = getContainerPos(max_block + 1 - chunk_offset, chunksize) - 1;
+	return (max_chunk + 1) * chunksize + chunk_offset - 1;
+}
+
+
+int MapgenParams::computeNegativeWorldLimit(int absolute_limit, int chunksize)
+{
+	int chunk_offset = -chunksize / 2;
+
+	// No node in min_block may be beyond -absolute_map_limit
+	int min_block = getContainerPos(-absolute_map_limit - 1, MAP_BLOCKSIZE) + 1;
+	// No block in min_chunk may be beyond min_block
+	int min_chunk = getContainerPos(min_block - 1 - chunk_offset, chunksize) + 1;
+	return min_chunk * chunksize + chunk_offset;
+}
+
+
+void MapgenParams::recomputeWorldLimits()
+{
+	blockpos_max.X = computePositiveWorldLimit(absolute_map_limit, chunksize);
+	blockpos_max.Y = blockpos_max.X;
+	blockpos_max.Z = blockpos_max.X;
+
+	assert(blockpos_max.X * MAP_BLOCKSIZE + MAP_BLOCKSIZE - 1 <= absolute_map_limit);
+
+	blockpos_min.X = computeNegativeWorldLimit(absolute_map_limit, chunksize);
+	blockpos_min.Y = blockpos_min.X;
+	blockpos_min.Z = blockpos_min.X;
+
+	assert(blockpos_min.X * MAP_BLOCKSIZE >= -absolute_map_limit);
+
+	if (blockpos_max.X < blockpos_min.X
+			|| blockpos_max.Y < blockpos_min.Y
+			|| blockpos_max.Z < blockpos_min.Z) {
+		std::ostringstream oss;
+		int chunk_offset = -chunksize / 2;
+		int min_limit = (chunksize + chunk_offset) * MAP_BLOCKSIZE - 1;
+		int min_limit2 = (-chunk_offset) * MAP_BLOCKSIZE;
+		if (min_limit2 > min_limit)
+			min_limit = min_limit2;
+		oss << "Map generation limit (" << absolute_map_limit
+			<< " is too small. Minimum value (for chunksize "
+			<< chunksize << ") is: " << min_limit;
+		throw ConfigurationError(oss.str());
+	}
+
+}
+
+
+bool MapgenParams::blockPosInWorld(v3s16 blockpos) const
+{
+	return blockpos.X >= blockpos_min.X && blockpos.X <= blockpos_max.X
+		&& blockpos.Y >= blockpos_min.Y && blockpos.Y <= blockpos_max.Y
+		&& blockpos.Z >= blockpos_min.Z && blockpos.Z <= blockpos_max.Z;
+}
+
+
+bool MapgenParams::blockPosIsStorable(v3s16 blockpos) const
+{
+	return blockpos.X >= blockpos_min.X - 1 && blockpos.X <= blockpos_max.X + 1
+		&& blockpos.Y >= blockpos_min.Y - 1 && blockpos.Y <= blockpos_max.Y + 1
+		&& blockpos.Z >= blockpos_min.Z - 1 && blockpos.Z <= blockpos_max.Z + 1;
+}
+
+
+bool MapgenParams::sectorPosInWorld(v2s16 sectorpos) const
+{
+	return sectorpos.X >= blockpos_min.X && sectorpos.X <= blockpos_max.X
+		&& sectorpos.Y >= blockpos_min.Z && sectorpos.Y <= blockpos_max.Z;
+}
+
+
+bool MapgenParams::sectorPosIsStorable(v2s16 sectorpos) const
+{
+	return sectorpos.X >= blockpos_min.X - 1 && sectorpos.X <= blockpos_max.X + 1
+		&& sectorpos.Y >= blockpos_min.Z - 1 && sectorpos.Y <= blockpos_max.Z + 1;
+}
+
+
+bool MapgenParams::objectPosInWorld(v3f objpos) const
+{
+	v3f objpos_min(blockpos_min.X, blockpos_min.Y, blockpos_min.Z);
+	v3f objpos_max(blockpos_max.X, blockpos_max.Y, blockpos_max.Z);
+	objpos_min = (objpos_min * MAP_BLOCKSIZE - unit_v3f * 0.5) * BS;
+	objpos_max = ((objpos_max + unit_v3f) * MAP_BLOCKSIZE - unit_v3f * 0.5) * BS;
+	return objpos.X >= objpos_min.X && objpos.X <= objpos_max.X
+		&& objpos.Y >= objpos_min.Y && objpos.Y <= objpos_max.Y
+		&& objpos.Z >= objpos_min.Z && objpos.Z <= objpos_max.Z;
+}
+
+
+bool MapgenParams::objectPosIsStorable(v3f objpos) const
+{
+	v3f objpos_min(blockpos_min.X, blockpos_min.Y, blockpos_min.Z);
+	v3f objpos_max(blockpos_max.X, blockpos_max.Y, blockpos_max.Z);
+	objpos_min = ((objpos_min - unit_v3f) * MAP_BLOCKSIZE - unit_v3f * 0.5) * BS;
+	objpos_max = ((objpos_max + 2 * unit_v3f) * MAP_BLOCKSIZE - unit_v3f * 0.5) * BS;
+	return objpos.X >= objpos_min.X && objpos.X <= objpos_max.X
+		&& objpos.Y >= objpos_min.Y && objpos.Y <= objpos_max.Y
+		&& objpos.Z >= objpos_min.Z && objpos.Z <= objpos_max.Z;
+}
+
+
+v3s16 MapgenParams::getContainingChunk(v3s16 blockpos) const
+{
+	s16 coff = -chunksize / 2;
+	v3s16 chunk_offset(coff, coff, coff);
+
+	return getContainerPos(blockpos - chunk_offset, chunksize)
+		* chunksize + chunk_offset;
+}
+
+
+void MapgenParams::getChunkLimits(v3s16 blockpos, v3s16 *bpmin, v3s16 *bpmax,
+	v3s16 *bpmin_ext, v3s16 *bpmax_ext) const
+{
+	*bpmin = getContainingChunk(blockpos);
+	*bpmax = *bpmin + unit_v3s16 * (chunksize - 1);
+	if (bpmin_ext) {
+		// Add extra borders (currently 1 block)
+		*bpmin_ext = *bpmin - unit_v3s16;
+		*bpmax_ext = *bpmax + unit_v3s16;
+	}
 }

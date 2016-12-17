@@ -137,8 +137,6 @@ public:
 		EmergeCompletionCallback callback,
 		void *callback_param);
 
-	v3s16 getContainingChunk(v3s16 blockpos);
-
 	Mapgen *getCurrentMapgen();
 
 	// Mapgen helpers methods
@@ -146,8 +144,6 @@ public:
 	int getSpawnLevelAtPoint(v2s16 p);
 	int getGroundLevelAtPoint(v2s16 p);
 	bool isBlockUnderground(v3s16 blockpos);
-
-	static v3s16 getContainingChunk(v3s16 blockpos, s16 chunksize);
 
 private:
 	std::vector<Mapgen *> m_mapgens;

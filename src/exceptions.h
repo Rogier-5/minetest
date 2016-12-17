@@ -135,6 +135,11 @@ public:
 	ModError(const std::string &s): BaseException(s) {}
 };
 
+class ConfigurationError : public BaseException {
+public:
+	ConfigurationError(const std::string &s): BaseException(s) {}
+};
+
 
 /*
 	Some "old-style" interrupts:

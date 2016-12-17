@@ -3416,7 +3416,7 @@ v3f Server::findSpawnPos()
 				if (air_count >= 2) {
 					nodeposf = intToFloat(nodepos, BS);
 					// Don't spawn the player outside map boundaries
-					if (objectpos_over_limit(nodeposf))
+					if (!dynamic_cast<ServerMap &>(m_env->getMap()).objectPosIsStorable(nodeposf))
 						continue;
 					is_good = true;
 					break;
@@ -3475,7 +3475,7 @@ PlayerSAO* Server::emergePlayer(const char *name, u16 peer_id, u16 proto_version
 		// If the player exists, ensure that they respawn inside legal bounds
 		// This fixes an assert crash when the player can't be added
 		// to the environment
-		if (objectpos_over_limit(playersao->getBasePosition())) {
+		if (!dynamic_cast<ServerMap &>(m_env->getMap()).objectPosIsStorable(playersao->getBasePosition())) {
 			actionstream << "Respawn position for player \""
 				<< name << "\" outside limits, resetting" << std::endl;
 			playersao->setBasePosition(findSpawnPos());
