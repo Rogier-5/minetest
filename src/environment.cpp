@@ -405,7 +405,8 @@ void fillRadiusBlock(v3s16 p0, s16 r, std::set<v3s16> &list)
 void ActiveBlockList::update(std::vector<v3s16> &active_positions,
 		s16 radius,
 		std::set<v3s16> &blocks_removed,
-		std::set<v3s16> &blocks_added)
+		std::set<v3s16> &blocks_added,
+		ServerMap *map)
 {
 	/*
 		Create the new list
@@ -415,6 +416,21 @@ void ActiveBlockList::update(std::vector<v3s16> &active_positions,
 			i != active_positions.end(); ++i)
 	{
 		fillRadiusBlock(*i, radius, newlist);
+	}
+
+	/*
+		Don't include blocks that are not supposed to be in the world
+	*/
+	for (std::set<v3s16>::iterator i = newlist.begin();
+			i != newlist.end();)
+	{
+		if (!map->blockPosInWorld(*i)) {
+			std::set<v3s16>::iterator j = i;
+			i++;
+			newlist.erase(j);
+		} else {
+			i++;
+		}
 	}
 
 	/*
@@ -1293,7 +1309,7 @@ void ServerEnvironment::step(float dtime)
 		std::set<v3s16> blocks_removed;
 		std::set<v3s16> blocks_added;
 		m_active_blocks.update(players_blockpos, active_block_range,
-				blocks_removed, blocks_added);
+				blocks_removed, blocks_added, m_map);
 
 		/*
 			Handle removed blocks
@@ -1334,9 +1350,18 @@ void ServerEnvironment::step(float dtime)
 				continue;
 			}
 
-			activateBlock(block);
-			/* infostream<<"Server: Block " << PP(p)
-				<< " became active"<<std::endl; */
+			if (m_map->blockPosInWorld(p)) {
+				if (block->isGenerated()) {
+					activateBlock(block);
+					/* infostream << "Server: Block " << PP(p)
+						<< " became active"<<std::endl; */
+				}
+			} else {
+				// Shouldn't happen.
+				warningstream << "Block " << PP(p) << " is outside map,"
+					<< " but found in active list" << std::endl;
+				m_active_blocks.m_list.erase(p);
+			}
 		}
 	}
 
@@ -2055,6 +2080,7 @@ void ServerEnvironment::deactivateFarObjects(bool force_delete)
 
 		u16 id = i->first;
 		v3f objectpos = obj->getBasePosition();
+		bool objectpos_in_world = m_map->objectPosInWorld(objectpos);
 
 		// The block in which the object resides in
 		v3s16 blockpos_o = getNodeBlockPos(floatToInt(objectpos, BS));
@@ -2063,6 +2089,7 @@ void ServerEnvironment::deactivateFarObjects(bool force_delete)
 		// is actually located in an active block, re-save to the block in
 		// which the object is actually located in.
 		if(!force_delete &&
+				objectpos_in_world &&
 				obj->m_static_exists &&
 				!m_active_blocks.contains(obj->m_static_block) &&
 				 m_active_blocks.contains(blockpos_o))
@@ -2100,8 +2127,8 @@ void ServerEnvironment::deactivateFarObjects(bool force_delete)
 			continue;
 		}
 
-		// If block is active, don't remove
-		if(!force_delete && m_active_blocks.contains(blockpos_o))
+		// If block is active and inside world, don't remove
+		if(!force_delete && objectpos_in_world && m_active_blocks.contains(blockpos_o))
 			continue;
 
 		verbosestream<<"ServerEnvironment::deactivateFarObjects(): "
@@ -2216,7 +2243,13 @@ void ServerEnvironment::deactivateFarObjects(bool force_delete)
 				}
 			}
 			else{
-				if(!force_delete){
+				if (!m_map->objectPosIsStorable(objectpos)) {
+					v3s16 p = floatToInt(objectpos, BS);
+					errorstream << "ServerEnv: Can not save id=" << obj->getId()
+							<< " at " << PP(p) << " statically: "
+							<< " location is not inside world;"
+							<< " object removed." << std::endl;
+				} else if (!force_delete) {
 					v3s16 p = floatToInt(objectpos, BS);
 					errorstream<<"ServerEnv: Could not find or generate "
 							<<"a block for storing id="<<obj->getId()

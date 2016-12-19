@@ -254,7 +254,8 @@ public:
 	void update(std::vector<v3s16> &active_positions,
 			s16 radius,
 			std::set<v3s16> &blocks_removed,
-			std::set<v3s16> &blocks_added);
+			std::set<v3s16> &blocks_added,
+			ServerMap *map);
 
 	bool contains(v3s16 p){
 		return (m_list.find(p) != m_list.end());
